@@ -1,0 +1,28 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Sadece anonim de olsa "giriş yapmış" (yani sitemizden gelen) istekler
+    // okuyup yazabilir. İsim+PIN kontrolü tamamen uygulama tarafında (app.js)
+    // yapılıyor; Firestore bunu bilmiyor. Bu kurallar sadece rastgele bot/istemcilerin
+    // veriye erişmesini engeller. Gerçek "kritik" veri değilse (arkadaş grubu için
+    // kupon takibi) bu seviye yeterlidir.
+
+    match /users/{userName} {
+      allow read: if request.auth != null;
+      // PIN sadece 1 kere set edilebilsin, sonradan dışarıdan değiştirilemesin
+      allow create: if request.auth != null
+                    && request.resource.data.keys().hasAll(['pin', 'pinSet'])
+                    && request.resource.data.pin is string
+                    && request.resource.data.pin.size() == 4;
+      allow update, delete: if false;
+    }
+
+    match /coupons/{couponId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null;
+      allow delete: if false;
+    }
+  }
+}
