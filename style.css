@@ -537,7 +537,7 @@ main.view{ padding:24px 28px 60px; max-width:900px; margin:0 auto; }
   gap:22px;
   align-items:start;
 }
-.stats-side{ position:sticky; top:20px; }
+.stats-side{ min-width:0; }
 .stats-main{ min-width:0; }
 
 .leaderboard-col{
@@ -578,7 +578,6 @@ main.view{ padding:24px 28px 60px; max-width:900px; margin:0 auto; }
 
 @media (max-width:980px){
   .stats-layout{ grid-template-columns:1fr; }
-  .stats-side{ position:static; }
 }
 
 /* ============================================================
