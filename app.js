@@ -1,6 +1,6 @@
 import { db, authReady, USERS } from "./firebase-config.js";
 import {
-  doc, getDoc, setDoc, updateDoc,
+  doc, getDoc, setDoc, updateDoc, deleteDoc,
   collection, query, where, orderBy, onSnapshot, getDocs,
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -8,11 +8,15 @@ import {
 /* ============================================================
    STATE
    ============================================================ */
+const ADMIN_USER = "Nihat";
+function isAdmin() { return currentUser === ADMIN_USER; }
+
 let currentUser = localStorage.getItem("kupon_user") || null;
 let activeCouponId = null;
 let couponsCache = [];
 let unsubCouponList = null;
 let unsubCouponDetail = null;
+let modalTargetUser = null;
 
 const pinState = { mode: "login", stage: "first", first: "", current: "", targetName: null };
 
@@ -179,6 +183,20 @@ function subscribeCouponList() {
   });
 }
 
+function couponTotals(c) {
+  let totalStake = 0, totalOdds = 1, filled = 0;
+  USERS.forEach(u => {
+    const m = c.matches ? c.matches[u] : null;
+    if (m) {
+      totalStake += Number(m.amount || 0);
+      totalOdds *= Number(m.odds || 1);
+      filled++;
+    }
+  });
+  const payout = filled > 0 ? totalStake * totalOdds : 0;
+  return { totalStake, totalOdds, payout, filled };
+}
+
 function couponProgress(c) {
   return USERS.filter(u => c.matches && c.matches[u]).length;
 }
@@ -264,12 +282,26 @@ function renderCouponDetail(c) {
   statusEl.textContent = info.label;
   statusEl.className = `status-pill status-${info.key}`;
 
+  const adminBar = document.getElementById("admin-bar");
+  if (isAdmin()) {
+    adminBar.classList.remove("hidden");
+    adminBar.innerHTML = `
+      <span class="admin-tag">★ Admin</span>
+      <button id="delete-coupon-btn" class="btn-danger">🗑 Kuponu Sil</button>
+    `;
+    document.getElementById("delete-coupon-btn").addEventListener("click", () => deleteCoupon(c.id));
+  } else {
+    adminBar.classList.add("hidden");
+    adminBar.innerHTML = "";
+  }
+
   const slotsEl = document.getElementById("match-slots");
   slotsEl.innerHTML = "";
   USERS.forEach((user, i) => {
     const m = c.matches ? c.matches[user] : null;
     const result = c.results ? c.results[user] : null;
     const isSelf = user === currentUser;
+    const canEditThis = isAdmin() || (isSelf && !m);
     const slot = document.createElement("div");
 
     if (!m) {
@@ -280,8 +312,11 @@ function renderCouponDetail(c) {
           <div class="slot-player">${user}</div>
           <div class="slot-empty-label">${isSelf ? "Maçını girmek için dokun →" : "Maç bekleniyor…"}</div>
         </div>
+        ${isAdmin() && !isSelf ? `<button class="slot-fill-btn" data-user="${user}">Doldur</button>` : ""}
       `;
-      if (isSelf) slot.addEventListener("click", () => openMatchModal(c.id));
+      if (isSelf) slot.addEventListener("click", () => openMatchModal(user, null, c.id));
+      const fillBtn = slot.querySelector(".slot-fill-btn");
+      if (fillBtn) fillBtn.addEventListener("click", (e) => { e.stopPropagation(); openMatchModal(user, null, c.id); });
     } else {
       slot.className = "match-slot";
       let resultBadge = "";
@@ -293,13 +328,41 @@ function renderCouponDetail(c) {
           <div class="slot-player">${user}</div>
           <div class="slot-teams">${escapeHtml(m.teams)}</div>
           <div class="slot-prediction">${escapeHtml(m.prediction)}</div>
+          <div class="slot-amount">${Number(m.amount || 0)}₺ yatırdı</div>
         </div>
         <span class="slot-odds">${Number(m.odds).toFixed(2)}</span>
         ${resultBadge}
+        ${isAdmin() ? `<button class="slot-edit-btn" data-user="${user}" title="Düzenle">✎</button>` : ""}
       `;
+      if (isAdmin()) {
+        slot.querySelector(".slot-edit-btn").addEventListener("click", () => openMatchModal(user, m, c.id));
+      }
     }
     slotsEl.appendChild(slot);
   });
+
+  const summaryEl = document.getElementById("kupon-summary");
+  const totals = couponTotals(c);
+  if (totals.filled > 0) {
+    summaryEl.classList.remove("hidden");
+    summaryEl.innerHTML = `
+      <div class="kupon-summary-item">
+        <div class="kupon-summary-value">${totals.totalStake}₺</div>
+        <div class="kupon-summary-label">Toplam Yatırım</div>
+      </div>
+      <div class="kupon-summary-item">
+        <div class="kupon-summary-value">${totals.totalOdds.toFixed(2)}</div>
+        <div class="kupon-summary-label">Toplam Oran</div>
+      </div>
+      <div class="kupon-summary-item">
+        <div class="kupon-summary-value">${totals.payout.toFixed(0)}₺</div>
+        <div class="kupon-summary-label">Olası Kazanç${totals.filled < 4 ? " (şimdilik)" : ""}</div>
+      </div>
+    `;
+  } else {
+    summaryEl.classList.add("hidden");
+    summaryEl.innerHTML = "";
+  }
 
   renderTicketFooter(c, info);
 }
@@ -323,40 +386,62 @@ function renderTicketFooter(c, info) {
     return;
   }
 
-  if (info.key === "played") {
-    if (c.playedBy !== currentUser) {
-      footer.innerHTML = `<p class="footer-note">Kuponu <strong>${c.playedBy}</strong> oynattı. Sonuçları o işaretleyecek.</p>`;
-      return;
+  // played / won / lost — sonuç bölümü
+  const canEditResults = isAdmin() || c.playedBy === currentUser;
+
+  if (info.key === "won" || info.key === "lost") {
+    const won = info.key === "won";
+    footer.innerHTML = `
+      <div class="final-banner ${won ? "won" : "lost"}">${won ? "🏆 Kupon Tuttu" : "Kupon Tutmadı"}</div>
+      <p class="play-summary">Oynatan: <strong>${c.playedBy}</strong></p>
+    `;
+    if (isAdmin()) {
+      footer.insertAdjacentHTML("beforeend", `<p class="footer-note">Admin olarak sonuçları aşağıdan değiştirebilirsin:</p>`);
+      appendResultRows(footer, c);
     }
-    const wrap = document.createElement("div");
-    wrap.innerHTML = `<p class="footer-note">Kuponu sen oynattın. Maçlar bitince sonuçları işaretle:</p>`;
-    USERS.forEach(user => {
-      const m = c.matches[user];
-      const result = c.results ? c.results[user] : null;
-      const row = document.createElement("div");
-      row.className = "result-row";
-      row.innerHTML = `
-        <span class="result-teams">${user}: ${escapeHtml(m.teams)}</span>
-        <span class="result-btns">
-          <button class="result-btn win-btn ${result === "tuttu" ? "active" : ""}" data-user="${user}" data-val="tuttu">Tuttu</button>
-          <button class="result-btn lose-btn ${result === "tutmadi" ? "active" : ""}" data-user="${user}" data-val="tutmadi">Tutmadı</button>
-        </span>
-      `;
-      wrap.appendChild(row);
-    });
-    footer.appendChild(wrap);
-    footer.querySelectorAll(".result-btn").forEach(btn => {
-      btn.addEventListener("click", () => setResult(c.id, btn.dataset.user, btn.dataset.val));
-    });
     return;
   }
 
-  // won / lost -> finished
-  const won = info.key === "won";
-  footer.innerHTML = `
-    <div class="final-banner ${won ? "won" : "lost"}">${won ? "🏆 Kupon Tuttu" : "Kupon Tutmadı"}</div>
-    <p class="play-summary">Oynatan: <strong>${c.playedBy}</strong></p>
-  `;
+  // status: played, sonuçlar tam değil
+  if (!canEditResults) {
+    footer.innerHTML = `<p class="footer-note">Kuponu <strong>${c.playedBy}</strong> oynattı. Sonuçları o (ya da admin) işaretleyecek.</p>`;
+    return;
+  }
+  footer.insertAdjacentHTML("beforeend", `<p class="footer-note">${c.playedBy === currentUser ? "Kuponu sen oynattın." : "Admin olarak"} Maçlar bitince sonuçları işaretle:</p>`);
+  appendResultRows(footer, c);
+}
+
+function appendResultRows(footer, c) {
+  const wrap = document.createElement("div");
+  USERS.forEach(user => {
+    const m = c.matches[user];
+    const result = c.results ? c.results[user] : null;
+    const row = document.createElement("div");
+    row.className = "result-row";
+    row.innerHTML = `
+      <span class="result-teams">${user}: ${escapeHtml(m.teams)}</span>
+      <span class="result-btns">
+        <button class="result-btn win-btn ${result === "tuttu" ? "active" : ""}" data-user="${user}" data-val="tuttu">Tuttu</button>
+        <button class="result-btn lose-btn ${result === "tutmadi" ? "active" : ""}" data-user="${user}" data-val="tutmadi">Tutmadı</button>
+      </span>
+    `;
+    wrap.appendChild(row);
+  });
+  footer.appendChild(wrap);
+  footer.querySelectorAll(".result-btn").forEach(btn => {
+    btn.addEventListener("click", () => setResult(c.id, btn.dataset.user, btn.dataset.val));
+  });
+}
+
+async function deleteCoupon(couponId) {
+  const c = couponsCache.find(x => x.id === couponId);
+  const ok = window.confirm(`"${c ? c.displayName : couponId}" kuponunu kalıcı olarak silmek istediğine emin misin? Bu işlem geri alınamaz.`);
+  if (!ok) return;
+  if (unsubCouponDetail) unsubCouponDetail();
+  await deleteDoc(doc(db, "coupons", couponId));
+  showToast("Kupon silindi");
+  switchView("home");
+  document.querySelector('.nav-btn[data-view="home"]').classList.add("active");
 }
 
 async function markPlayed(couponId) {
@@ -376,11 +461,18 @@ async function setResult(couponId, user, val) {
 /* ============================================================
    MATCH MODAL
    ============================================================ */
-function openMatchModal() {
-  document.getElementById("input-teams").value = "";
-  document.getElementById("input-prediction").value = "";
-  document.getElementById("input-odds").value = "";
+function openMatchModal(targetUser, existingMatch, couponId) {
+  activeCouponId = couponId || activeCouponId;
+  modalTargetUser = targetUser;
+  document.getElementById("input-teams").value = existingMatch ? existingMatch.teams : "";
+  document.getElementById("input-prediction").value = existingMatch ? existingMatch.prediction : "";
+  document.getElementById("input-odds").value = existingMatch ? existingMatch.odds : "";
+  document.getElementById("input-amount").value = existingMatch ? existingMatch.amount : "";
   document.getElementById("modal-error").classList.add("hidden");
+  const heading = document.querySelector("#match-modal .ticket-eyebrow");
+  heading.textContent = targetUser === currentUser
+    ? "Maçını gir"
+    : `${targetUser} adına düzenle (Admin)`;
   document.getElementById("match-modal").classList.remove("hidden");
 }
 function closeMatchModal() {
@@ -391,9 +483,10 @@ async function submitMatch() {
   const teams = document.getElementById("input-teams").value.trim();
   const prediction = document.getElementById("input-prediction").value.trim();
   const odds = parseFloat(document.getElementById("input-odds").value);
+  const amount = parseFloat(document.getElementById("input-amount").value);
   const errEl = document.getElementById("modal-error");
 
-  if (!teams || !prediction || !odds) {
+  if (!teams || !prediction || !odds || !amount || amount <= 0) {
     errEl.textContent = "Tüm alanları doğru şekilde doldur.";
     errEl.classList.remove("hidden");
     return;
@@ -405,13 +498,13 @@ async function submitMatch() {
   }
 
   await updateDoc(doc(db, "coupons", activeCouponId), {
-    [`matches.${currentUser}`]: {
-      teams, prediction, odds,
+    [`matches.${modalTargetUser}`]: {
+      teams, prediction, odds, amount,
       enteredAt: serverTimestamp()
     }
   });
   closeMatchModal();
-  showToast("Maçın kaydedildi ✔");
+  showToast("Maç kaydedildi ✔");
 }
 
 /* ============================================================
@@ -432,10 +525,10 @@ function renderStats() {
   const playerGrid = document.getElementById("player-stats");
   playerGrid.innerHTML = "";
   USERS.forEach(user => {
-    let matchCount = 0, oddsSum = 0, oddsCount = 0, resultCount = 0, hitCount = 0;
+    let matchCount = 0, oddsSum = 0, oddsCount = 0, resultCount = 0, hitCount = 0, amountSum = 0;
     couponsCache.forEach(c => {
       const m = c.matches ? c.matches[user] : null;
-      if (m) { matchCount++; oddsSum += Number(m.odds); oddsCount++; }
+      if (m) { matchCount++; oddsSum += Number(m.odds); oddsCount++; amountSum += Number(m.amount || 0); }
       const r = c.results ? c.results[user] : null;
       if (r) { resultCount++; if (r === "tuttu") hitCount++; }
     });
@@ -444,8 +537,9 @@ function renderStats() {
     const card = document.createElement("div");
     card.className = "player-card";
     card.innerHTML = `
-      <div class="player-card-name">${user}</div>
+      <div class="player-card-name">${user}${user === ADMIN_USER ? " ★" : ""}</div>
       <div class="player-stat-line"><span>Girdiği maç</span><span>${matchCount}</span></div>
+      <div class="player-stat-line"><span>Toplam yatırım</span><span>${amountSum}₺</span></div>
       <div class="player-stat-line"><span>Ortalama oran</span><span>${avgOdds}</span></div>
       <div class="player-stat-line"><span>Kendi isabet oranı</span><span>${hitRate === null ? "—" : "%" + hitRate}</span></div>
     `;

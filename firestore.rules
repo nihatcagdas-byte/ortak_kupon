@@ -22,7 +22,10 @@ service cloud.firestore {
       allow read: if request.auth != null;
       allow create: if request.auth != null;
       allow update: if request.auth != null;
-      allow delete: if false;
+      // Silme işlemi uygulama tarafında (app.js) sadece Nihat girişinde gösteriliyor.
+      // Firestore, "Nihat" ismini doğrulayamaz (PIN kontrolü client-side), bu yüzden
+      // burada sadece "sitemizden gelen istek mi" kontrolü yapılabiliyor.
+      allow delete: if request.auth != null;
     }
   }
 }

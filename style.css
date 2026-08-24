@@ -459,6 +459,49 @@ main.view{ padding:24px 28px 60px; max-width:900px; margin:0 auto; }
   letter-spacing:0; color:var(--lose); font-size:11.5px;
 }
 
+.admin-bar{
+  display:flex; justify-content:flex-end; gap:8px;
+  padding:0 24px 12px;
+}
+.btn-danger{
+  background:transparent; color:var(--lose);
+  border:1px solid var(--lose);
+  font-family:var(--font-mono); font-size:12px; text-transform:uppercase; letter-spacing:0.5px;
+  padding:7px 14px; border-radius:6px; cursor:pointer;
+}
+.btn-danger:hover{ background:var(--lose-bg); }
+.admin-tag{
+  font-family:var(--font-mono); font-size:11px; text-transform:uppercase; letter-spacing:1px;
+  color:var(--gold); border:1px solid var(--gold); border-radius:20px;
+  padding:5px 10px; align-self:center; margin-right:auto;
+}
+
+.slot-edit-btn{
+  background:none; border:none; cursor:pointer; flex-shrink:0;
+  font-size:15px; color:var(--ink-soft); padding:4px 6px; border-radius:6px;
+}
+.slot-edit-btn:hover{ background:rgba(217,166,46,0.15); color:var(--ink); }
+.slot-fill-btn{
+  font-family:var(--font-mono); font-size:11px; text-transform:uppercase;
+  background:var(--pitch); color:var(--paper); border:none; border-radius:6px;
+  padding:6px 10px; cursor:pointer; flex-shrink:0;
+}
+.slot-amount{
+  font-family:var(--font-mono); font-size:12px; color:var(--ink-soft); margin-top:2px;
+}
+
+.kupon-summary{
+  margin:14px 24px 0;
+  background:var(--pitch);
+  color:var(--paper);
+  border-radius:10px;
+  padding:14px 18px;
+  display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap;
+}
+.kupon-summary-item{ text-align:center; flex:1; min-width:90px; }
+.kupon-summary-value{ font-family:var(--font-mono); font-weight:600; font-size:17px; color:var(--gold-bright); }
+.kupon-summary-label{ font-family:var(--font-mono); font-size:10px; text-transform:uppercase; letter-spacing:1px; color:rgba(242,238,225,0.6); margin-top:2px; }
+
 /* ============================================================
    MODAL
    ============================================================ */

@@ -96,9 +96,13 @@
 
       <div class="perforation" aria-hidden="true"></div>
 
+      <div id="admin-bar" class="admin-bar hidden"></div>
+
       <div id="match-slots" class="match-slots">
         <!-- doldurulur: app.js -->
       </div>
+
+      <div id="kupon-summary" class="kupon-summary hidden"></div>
 
       <div class="perforation" aria-hidden="true"></div>
 
@@ -150,6 +154,9 @@
 
     <label class="field-label">Oran <span class="field-hint">(kural gereği en az 2.00)</span></label>
     <input id="input-odds" class="field-input field-mono" type="number" step="0.01" min="2.00" placeholder="2.00">
+
+    <label class="field-label">Yatıracağın Tutar (₺)</label>
+    <input id="input-amount" class="field-input field-mono" type="number" step="1" min="1" placeholder="100">
 
     <p id="modal-error" class="pin-error hidden">Tüm alanları doldur.</p>
     <p class="modal-warning">⚠ Girdikten sonra bu maçı değiştiremezsin, dikkatli gir.</p>
