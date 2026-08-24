@@ -437,8 +437,14 @@ async function deleteCoupon(couponId) {
   const c = couponsCache.find(x => x.id === couponId);
   const ok = window.confirm(`"${c ? c.displayName : couponId}" kuponunu kalıcı olarak silmek istediğine emin misin? Bu işlem geri alınamaz.`);
   if (!ok) return;
+  try {
+    await deleteDoc(doc(db, "coupons", couponId));
+  } catch (err) {
+    console.error("Kupon silinemedi:", err);
+    showToast("Silinemedi: " + (err.code || err.message || "bilinmeyen hata"));
+    return;
+  }
   if (unsubCouponDetail) unsubCouponDetail();
-  await deleteDoc(doc(db, "coupons", couponId));
   showToast("Kupon silindi");
   switchView("home");
   document.querySelector('.nav-btn[data-view="home"]').classList.add("active");
@@ -488,11 +494,6 @@ async function submitMatch() {
 
   if (!teams || !prediction || !odds || !amount || amount <= 0) {
     errEl.textContent = "Tüm alanları doğru şekilde doldur.";
-    errEl.classList.remove("hidden");
-    return;
-  }
-  if (odds < 2) {
-    errEl.textContent = "Kural gereği oran en az 2.00 olmalı.";
     errEl.classList.remove("hidden");
     return;
   }
