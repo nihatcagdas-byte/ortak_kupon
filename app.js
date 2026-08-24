@@ -1,6 +1,6 @@
 import { db, authReady, USERS } from "./firebase-config.js";
 import {
-  doc, getDoc, setDoc, updateDoc, deleteDoc,
+  doc, getDoc, setDoc, updateDoc, deleteDoc, increment,
   collection, query, where, orderBy, onSnapshot, getDocs,
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -16,7 +16,10 @@ let activeCouponId = null;
 let couponsCache = [];
 let unsubCouponList = null;
 let unsubCouponDetail = null;
+let unsubPool = null;
 let modalTargetUser = null;
+let poolBalance = 0;
+const poolRef = doc(db, "meta", "pool");
 
 const pinState = { mode: "login", stage: "first", first: "", current: "", targetName: null };
 
@@ -150,6 +153,7 @@ function logout() {
   localStorage.removeItem("kupon_user");
   if (unsubCouponList) unsubCouponList();
   if (unsubCouponDetail) unsubCouponDetail();
+  if (unsubPool) unsubPool();
   document.getElementById("app-shell").classList.add("hidden");
   document.getElementById("view-login").classList.add("active");
   document.getElementById("pin-pad").classList.add("hidden");
@@ -167,6 +171,56 @@ function enterApp() {
   document.getElementById("current-user-tag").textContent = currentUser;
   switchView("home");
   subscribeCouponList();
+  subscribePool();
+}
+
+/* ============================================================
+   ORTAK KASA (HAVUZ)
+   ============================================================ */
+function subscribePool() {
+  if (unsubPool) unsubPool();
+  unsubPool = onSnapshot(poolRef, async (snap) => {
+    if (!snap.exists()) {
+      try { await setDoc(poolRef, { balance: 0 }); } catch (e) { console.error(e); }
+      return;
+    }
+    poolBalance = Number(snap.data().balance || 0);
+    renderPoolCard();
+    // Kupon detayındaysak, havuz bakiyesine bağlı butonları (etiketler vb.) tazele
+    const cc = couponsCache.find(x => x.id === activeCouponId);
+    if (cc && document.getElementById("view-coupon").classList.contains("active")) {
+      renderCouponDetail(cc);
+    }
+  });
+}
+
+function renderPoolCard() {
+  const el = document.getElementById("pool-card");
+  if (!el) return;
+  el.innerHTML = `
+    <span class="pool-icon">🏦</span>
+    <div>
+      <div class="pool-label">Ortak Kasa</div>
+      <div class="pool-value">${poolBalance.toFixed(0)}₺</div>
+    </div>
+    ${isAdmin() ? `<button id="pool-edit-btn" class="pool-edit-btn" title="Manuel düzelt">✎</button>` : ""}
+  `;
+  const editBtn = document.getElementById("pool-edit-btn");
+  if (editBtn) editBtn.addEventListener("click", adjustPoolManually);
+}
+
+async function adjustPoolManually() {
+  const input = window.prompt("Havuza eklenecek/çıkarılacak tutarı gir (çıkarmak için başına - koy). Örn: 200 veya -50");
+  if (input === null) return;
+  const value = parseFloat(input.replace(",", "."));
+  if (isNaN(value) || value === 0) return;
+  try {
+    await updateDoc(poolRef, { balance: increment(value) });
+    showToast(`Havuz güncellendi (${value > 0 ? "+" : ""}${value}₺)`);
+  } catch (err) {
+    console.error(err);
+    showToast("Havuz güncellenemedi: " + (err.code || err.message));
+  }
 }
 
 /* ============================================================
@@ -377,12 +431,18 @@ function renderTicketFooter(c, info) {
   }
 
   if (info.key === "ready") {
-    const btn = document.createElement("button");
-    btn.className = "btn-primary full";
-    btn.textContent = "Bu Kuponu Onadım";
-    btn.addEventListener("click", () => markPlayed(c.id));
-    footer.appendChild(btn);
-    footer.insertAdjacentHTML("beforeend", `<p class="footer-note">4 maç da girildi. Kuponu oynayan kişi burada onaylasın.</p>`);
+    footer.innerHTML = `<p class="footer-note">4 maç da girildi. Kupon parası nereden karşılanacak?</p>`;
+    const totals = couponTotals(c);
+    const row = document.createElement("div");
+    row.className = "fund-choice-row";
+    row.innerHTML = `
+      <button id="fund-players-btn" class="btn-primary">👥 Kullanıcılardan</button>
+      <button id="fund-pool-btn" class="btn-secondary">🏦 Havuzdan <span class="fund-pool-balance">(${poolBalance.toFixed(0)}₺)</span></button>
+    `;
+    footer.appendChild(row);
+    footer.insertAdjacentHTML("beforeend", `<p class="footer-note fund-note">Gerekli tutar: ${totals.totalStake}₺</p>`);
+    document.getElementById("fund-players-btn").addEventListener("click", () => markPlayed(c, "players"));
+    document.getElementById("fund-pool-btn").addEventListener("click", () => markPlayed(c, "pool"));
     return;
   }
 
@@ -391,10 +451,31 @@ function renderTicketFooter(c, info) {
 
   if (info.key === "won" || info.key === "lost") {
     const won = info.key === "won";
+    const fundLabel = c.fundingSource === "pool" ? "Havuzdan" : "Kullanıcılardan";
     footer.innerHTML = `
       <div class="final-banner ${won ? "won" : "lost"}">${won ? "🏆 Kupon Tuttu" : "Kupon Tutmadı"}</div>
-      <p class="play-summary">Oynatan: <strong>${c.playedBy}</strong></p>
+      <p class="play-summary">Oynatan: <strong>${c.playedBy}</strong> · Kaynak: <strong>${fundLabel}</strong></p>
     `;
+
+    if (won) {
+      if (c.payoutAction) {
+        const label = c.payoutAction === "pooled" ? "Havuza eklendi" : "Kişilere dağıtıldı";
+        footer.insertAdjacentHTML("beforeend", `<p class="footer-note payout-done">Kazanç: <strong>${label}</strong></p>`);
+      } else if (canEditResults) {
+        const totals = couponTotals(c);
+        footer.insertAdjacentHTML("beforeend", `<p class="footer-note">Kazanılan <strong>${totals.payout.toFixed(0)}₺</strong> ne oldu?</p>`);
+        const row = document.createElement("div");
+        row.className = "fund-choice-row";
+        row.innerHTML = `
+          <button id="payout-distribute-btn" class="btn-primary">💸 Kişilere Dağıtıldı</button>
+          <button id="payout-pool-btn" class="btn-secondary">🏦 Havuza Aktar</button>
+        `;
+        footer.appendChild(row);
+        document.getElementById("payout-distribute-btn").addEventListener("click", () => setPayoutAction(c, "distributed"));
+        document.getElementById("payout-pool-btn").addEventListener("click", () => setPayoutAction(c, "pooled"));
+      }
+    }
+
     if (isAdmin()) {
       footer.insertAdjacentHTML("beforeend", `<p class="footer-note">Admin olarak sonuçları aşağıdan değiştirebilirsin:</p>`);
       appendResultRows(footer, c);
@@ -403,11 +484,12 @@ function renderTicketFooter(c, info) {
   }
 
   // status: played, sonuçlar tam değil
+  const fundLabel = c.fundingSource === "pool" ? "Havuzdan" : "Kullanıcılardan";
   if (!canEditResults) {
-    footer.innerHTML = `<p class="footer-note">Kuponu <strong>${c.playedBy}</strong> oynattı. Sonuçları o (ya da admin) işaretleyecek.</p>`;
+    footer.innerHTML = `<p class="footer-note">Kuponu <strong>${c.playedBy}</strong> oynattı (${fundLabel}). Sonuçları o (ya da admin) işaretleyecek.</p>`;
     return;
   }
-  footer.insertAdjacentHTML("beforeend", `<p class="footer-note">${c.playedBy === currentUser ? "Kuponu sen oynattın." : "Admin olarak"} Maçlar bitince sonuçları işaretle:</p>`);
+  footer.insertAdjacentHTML("beforeend", `<p class="footer-note">${c.playedBy === currentUser ? "Kuponu sen oynattın" : "Admin olarak"} (${fundLabel}). Maçlar bitince sonuçları işaretle:</p>`);
   appendResultRows(footer, c);
 }
 
@@ -450,12 +532,42 @@ async function deleteCoupon(couponId) {
   document.querySelector('.nav-btn[data-view="home"]').classList.add("active");
 }
 
-async function markPlayed(couponId) {
-  await updateDoc(doc(db, "coupons", couponId), {
+async function markPlayed(c, source) {
+  const totals = couponTotals(c);
+  if (source === "pool") {
+    if (poolBalance < totals.totalStake) {
+      showToast(`Havuzda yeterli bakiye yok (Havuz: ${poolBalance.toFixed(0)}₺, Gerekli: ${totals.totalStake}₺)`);
+      return;
+    }
+    try {
+      await updateDoc(poolRef, { balance: increment(-totals.totalStake) });
+    } catch (err) {
+      console.error(err);
+      showToast("Havuz güncellenemedi: " + (err.code || err.message));
+      return;
+    }
+  }
+  await updateDoc(doc(db, "coupons", c.id), {
     playedBy: currentUser,
-    playedAt: serverTimestamp()
+    playedAt: serverTimestamp(),
+    fundingSource: source
   });
-  showToast("Kupon onaylandı, iyi şanslar!");
+  showToast(source === "pool" ? `Kupon havuzdan oynatıldı (-${totals.totalStake}₺)` : "Kupon onaylandı, iyi şanslar!");
+}
+
+async function setPayoutAction(c, action) {
+  const totals = couponTotals(c);
+  if (action === "pooled") {
+    try {
+      await updateDoc(poolRef, { balance: increment(totals.payout) });
+    } catch (err) {
+      console.error(err);
+      showToast("Havuz güncellenemedi: " + (err.code || err.message));
+      return;
+    }
+  }
+  await updateDoc(doc(db, "coupons", c.id), { payoutAction: action });
+  showToast(action === "pooled" ? `+${totals.payout.toFixed(0)}₺ havuza eklendi` : "Kazanç dağıtıldı olarak işaretlendi");
 }
 
 async function setResult(couponId, user, val) {
