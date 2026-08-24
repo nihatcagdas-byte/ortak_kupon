@@ -527,12 +527,19 @@ main.view{ padding:24px 28px 60px; max-width:900px; margin:0 auto; }
 .payout-done{ text-align:center; color:var(--win); font-weight:600; }
 
 /* ============================================================
-   LEADERBOARD (Haftalık / Aylık)
+   STATS LAYOUT (sol: haftalık · orta: genel · sağ: aylık)
    ============================================================ */
-.leaderboard-grid{
-  display:grid; grid-template-columns:1fr 1fr; gap:18px;
-  margin-bottom:32px;
+.view-stats{ max-width:1220px; }
+
+.stats-layout{
+  display:grid;
+  grid-template-columns:250px 1fr 250px;
+  gap:22px;
+  align-items:start;
 }
+.stats-side{ position:sticky; top:20px; }
+.stats-main{ min-width:0; }
+
 .leaderboard-col{
   background:rgba(242,238,225,0.05);
   border:1px solid rgba(242,238,225,0.14);
@@ -542,22 +549,22 @@ main.view{ padding:24px 28px 60px; max-width:900px; margin:0 auto; }
 .lb-head{ display:flex; align-items:center; gap:12px; margin-bottom:16px; }
 .lb-emoji{ font-size:24px; }
 .lb-title{
-  font-family:var(--font-display); font-size:16px; text-transform:uppercase;
-  letter-spacing:0.4px; color:var(--gold-bright);
+  font-family:var(--font-display); font-size:15px; text-transform:uppercase;
+  letter-spacing:0.4px; color:var(--gold-bright); line-height:1.25;
 }
-.lb-range{ font-family:var(--font-mono); font-size:11.5px; color:rgba(242,238,225,0.5); margin-top:1px; }
+.lb-range{ font-family:var(--font-mono); font-size:11px; color:rgba(242,238,225,0.5); margin-top:1px; }
 
 .lb-list{ display:flex; flex-direction:column; gap:9px; }
 .lb-row{
-  display:flex; align-items:center; gap:12px;
+  display:flex; align-items:flex-start; gap:10px;
   background:var(--paper); color:var(--ink);
   border-radius:10px; padding:10px 12px;
   box-shadow:0 3px 0 rgba(0,0,0,0.15);
 }
 .lb-medal{
-  width:34px; height:34px; border-radius:50%; flex-shrink:0;
+  width:30px; height:30px; border-radius:50%; flex-shrink:0;
   display:flex; align-items:center; justify-content:center;
-  font-size:16px; font-family:var(--font-mono); font-weight:600;
+  font-size:14px; font-family:var(--font-mono); font-weight:600;
 }
 .lb-gold{ background:linear-gradient(135deg,#F7DE94,#D9A62E); box-shadow:0 0 0 2px rgba(217,166,46,0.35); }
 .lb-silver{ background:linear-gradient(135deg,#EDEDED,#B9B9B9); }
@@ -566,8 +573,13 @@ main.view{ padding:24px 28px 60px; max-width:900px; margin:0 auto; }
 .lb-row.lb-gold{ border-left:4px solid var(--gold); }
 
 .lb-info{ min-width:0; }
-.lb-name{ font-family:var(--font-display); font-size:15px; text-transform:uppercase; letter-spacing:0.3px; }
-.lb-meta{ font-family:var(--font-mono); font-size:11px; color:var(--ink-soft); margin-top:2px; }
+.lb-name{ font-family:var(--font-display); font-size:13.5px; text-transform:uppercase; letter-spacing:0.3px; }
+.lb-meta{ font-family:var(--font-mono); font-size:10.5px; color:var(--ink-soft); margin-top:2px; line-height:1.5; }
+
+@media (max-width:980px){
+  .stats-layout{ grid-template-columns:1fr; }
+  .stats-side{ position:static; }
+}
 
 /* ============================================================
    MODAL
@@ -624,5 +636,4 @@ main.view{ padding:24px 28px 60px; max-width:900px; margin:0 auto; }
   .name-grid{ grid-template-columns:1fr 1fr; }
   .match-slot{ flex-wrap:wrap; }
   .slot-odds{ margin-left:38px; }
-  .leaderboard-grid{ grid-template-columns:1fr; }
 }

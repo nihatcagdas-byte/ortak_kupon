@@ -117,39 +117,48 @@
 
   <!-- ============ STATS ============ -->
   <main id="view-stats" class="view view-stats">
-    <h2 class="section-title">İstatistikler</h2>
-    <p class="section-sub">Kim kaç maç girdi, kimin isabeti yüksek, kuponlar genel olarak nasıl gidiyor.</p>
+    <div class="stats-layout">
 
-    <div class="leaderboard-grid">
-      <div class="leaderboard-col">
-        <div class="lb-head">
-          <span class="lb-emoji">🗓️</span>
-          <div>
-            <div class="lb-title">Haftalık Lider Tablosu</div>
-            <div class="lb-range" id="lb-week-range">—</div>
+      <aside class="stats-side">
+        <div class="leaderboard-col">
+          <div class="lb-head">
+            <span class="lb-emoji">🗓️</span>
+            <div>
+              <div class="lb-title">Haftalık Lider Tablosu</div>
+              <div class="lb-range" id="lb-week-range">—</div>
+            </div>
           </div>
+          <div id="lb-week-list" class="lb-list"><!-- doldurulur: app.js --></div>
         </div>
-        <div id="lb-week-list" class="lb-list"><!-- doldurulur: app.js --></div>
+      </aside>
+
+      <div class="stats-main">
+        <h2 class="section-title">İstatistikler</h2>
+        <p class="section-sub">Kim kaç maç girdi, kimin isabeti yüksek, kuponlar genel olarak nasıl gidiyor.</p>
+
+        <div id="overall-stats" class="overall-stats">
+          <!-- doldurulur: app.js -->
+        </div>
+
+        <h3 class="subsection-title">Oyunculara göre</h3>
+        <div id="player-stats" class="player-stats-grid">
+          <!-- doldurulur: app.js -->
+        </div>
       </div>
-      <div class="leaderboard-col">
-        <div class="lb-head">
-          <span class="lb-emoji">📅</span>
-          <div>
-            <div class="lb-title">Aylık Lider Tablosu</div>
-            <div class="lb-range" id="lb-month-range">—</div>
+
+      <aside class="stats-side">
+        <div class="leaderboard-col">
+          <div class="lb-head">
+            <span class="lb-emoji">📅</span>
+            <div>
+              <div class="lb-title">Aylık Lider Tablosu</div>
+              <div class="lb-range" id="lb-month-range">—</div>
+            </div>
           </div>
+          <div id="lb-month-list" class="lb-list"><!-- doldurulur: app.js --></div>
         </div>
-        <div id="lb-month-list" class="lb-list"><!-- doldurulur: app.js --></div>
-      </div>
-    </div>
+      </aside>
 
-    <div id="overall-stats" class="overall-stats">
-      <!-- doldurulur: app.js -->
-    </div>
-
-    <h3 class="subsection-title">Oyunculara göre</h3>
-    <div id="player-stats" class="player-stats-grid">
-      <!-- doldurulur: app.js -->
     </div>
   </main>
 
