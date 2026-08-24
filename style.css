@@ -393,6 +393,73 @@ main.view{ padding:24px 28px 60px; max-width:900px; margin:0 auto; }
 .player-stat-line span:last-child{ font-family:var(--font-mono); font-weight:600; }
 
 /* ============================================================
+   RULES (belirgin / dikkat çekici tema)
+   ============================================================ */
+.nav-btn-rules{ color:var(--gold-bright); }
+.nav-btn-rules.active{ background:var(--lose); color:#fff; }
+
+.rules-banner{
+  background:linear-gradient(135deg, var(--lose) 0%, #8f2f26 100%);
+  border-radius:14px;
+  padding:26px 28px;
+  margin-bottom:22px;
+  box-shadow:0 8px 0 rgba(0,0,0,0.25);
+  position:relative;
+  overflow:hidden;
+}
+.rules-banner::after{
+  content:"";
+  position:absolute; top:-30%; right:-8%;
+  width:180px; height:180px;
+  background:rgba(255,255,255,0.08);
+  border-radius:50%;
+}
+.rules-banner-eyebrow{
+  font-family:var(--font-mono); font-size:11.5px; letter-spacing:2.5px;
+  text-transform:uppercase; color:rgba(255,255,255,0.85);
+  background:rgba(0,0,0,0.2); padding:4px 10px; border-radius:20px;
+}
+.rules-banner-title{
+  font-family:var(--font-display); font-size:26px; color:#fff;
+  margin:12px 0 0; text-transform:uppercase; letter-spacing:0.3px;
+}
+
+.rules-list{ display:flex; flex-direction:column; gap:12px; }
+
+.rule-card{
+  display:flex; align-items:flex-start; gap:16px;
+  background:var(--gold-bright);
+  color:var(--pitch-deep);
+  border-radius:12px;
+  padding:18px 20px;
+  box-shadow:0 5px 0 rgba(0,0,0,0.22);
+  border-left:6px solid var(--lose);
+}
+.rule-card:nth-child(even){
+  background:var(--paper);
+  border-left-color:var(--gold);
+}
+.rule-num{
+  font-family:var(--font-display);
+  font-size:26px;
+  line-height:1;
+  flex-shrink:0;
+  min-width:34px;
+}
+.rule-text{
+  font-family:var(--font-body);
+  font-weight:600;
+  font-size:15.5px;
+  line-height:1.45;
+  padding-top:3px;
+}
+
+.field-hint{
+  font-family:var(--font-body); font-weight:400; text-transform:none;
+  letter-spacing:0; color:var(--lose); font-size:11.5px;
+}
+
+/* ============================================================
    MODAL
    ============================================================ */
 .modal-overlay{

@@ -393,8 +393,13 @@ async function submitMatch() {
   const odds = parseFloat(document.getElementById("input-odds").value);
   const errEl = document.getElementById("modal-error");
 
-  if (!teams || !prediction || !odds || odds <= 1) {
+  if (!teams || !prediction || !odds) {
     errEl.textContent = "Tüm alanları doğru şekilde doldur.";
+    errEl.classList.remove("hidden");
+    return;
+  }
+  if (odds < 2) {
+    errEl.textContent = "Kural gereği oran en az 2.00 olmalı.";
     errEl.classList.remove("hidden");
     return;
   }
@@ -455,6 +460,34 @@ function escapeHtml(str) {
 }
 
 /* ============================================================
+   RULES
+   ============================================================ */
+const RULES = [
+  "Her kuponda her kişi sadece 1 maç verebilir.",
+  "Verilen maçın oranı 2.00 ve üzeri olmalıdır.",
+  "Kuponu oynayan son kişi, kuponu kaydeder ve toplam kupon tutarını gruba yazar.",
+  "Kuponda maçı kaybeden kişi veya kişiler, kazanan kişilerin kupon ücretini öder.",
+  "Kimse, kendi tuttuğu takıma, garanti gördüğü maçlarda dahi oynayamaz.",
+  "Her ay en çok maç kaybeden kişi, bir kuponu tek başına ödeyerek oynar."
+];
+const RULE_EMOJIS = ["1️⃣","2️⃣","3️⃣","4️⃣","5️⃣","6️⃣"];
+
+function renderRules() {
+  const list = document.getElementById("rules-list");
+  if (!list) return;
+  list.innerHTML = "";
+  RULES.forEach((text, i) => {
+    const card = document.createElement("div");
+    card.className = "rule-card";
+    card.innerHTML = `
+      <span class="rule-num">${RULE_EMOJIS[i] || (i + 1) + "."}</span>
+      <span class="rule-text">${escapeHtml(text)}</span>
+    `;
+    list.appendChild(card);
+  });
+}
+
+/* ============================================================
    EVENT WIRING
    ============================================================ */
 document.getElementById("back-to-names").addEventListener("click", () => {
@@ -490,6 +523,7 @@ document.getElementById("submit-match").addEventListener("click", submitMatch);
 async function boot() {
   await authReady;
   renderNameGrid();
+  renderRules();
   if (currentUser) {
     enterApp();
   }
