@@ -29,6 +29,28 @@ const pinState = { mode: "login", stage: "first", first: "", current: "", target
 function pad(n) { return String(n).padStart(2, "0"); }
 function dateKeyFor(d) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
 function displayDateFor(d) { return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`; }
+function parseDateKey(dateKey) {
+  const [y, m, d] = dateKey.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+function startOfWeek(d) {
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day; // Pazartesi başlangıçlı hafta
+  const monday = new Date(d);
+  monday.setDate(d.getDate() + diff);
+  monday.setHours(0, 0, 0, 0);
+  return monday;
+}
+function endOfWeek(d) {
+  const s = startOfWeek(d);
+  const e = new Date(s);
+  e.setDate(s.getDate() + 6);
+  e.setHours(23, 59, 59, 999);
+  return e;
+}
+function startOfMonth(d) { return new Date(d.getFullYear(), d.getMonth(), 1); }
+function endOfMonth(d) { return new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999); }
+const TR_MONTHS = ["Ocak","Şubat","Mart","Nisan","Mayıs","Haziran","Temmuz","Ağustos","Eylül","Ekim","Kasım","Aralık"];
 function showToast(msg) {
   const t = document.getElementById("toast");
   t.textContent = msg;
@@ -621,9 +643,75 @@ async function submitMatch() {
 }
 
 /* ============================================================
+   LEADERBOARD (Haftalık / Aylık)
+   ============================================================ */
+function computeLeaderboard(rangeStart, rangeEnd) {
+  const stats = {};
+  USERS.forEach(u => stats[u] = { user: u, entered: 0, won: 0, oddsSum: 0 });
+
+  couponsCache.forEach(c => {
+    if (!c.dateKey) return;
+    const d = parseDateKey(c.dateKey);
+    if (d < rangeStart || d > rangeEnd) return;
+    USERS.forEach(u => {
+      const m = c.matches ? c.matches[u] : null;
+      if (m) { stats[u].entered++; stats[u].oddsSum += Number(m.odds || 0); }
+      const r = c.results ? c.results[u] : null;
+      if (r === "tuttu") stats[u].won++;
+    });
+  });
+
+  // Sıralama: önce kazanılan maç sayısı, eşitlikte toplam oran
+  return Object.values(stats).sort((a, b) => {
+    if (b.won !== a.won) return b.won - a.won;
+    return b.oddsSum - a.oddsSum;
+  });
+}
+
+const MEDALS = ["🥇", "🥈", "🥉"];
+const RANK_CLASSES = ["lb-gold", "lb-silver", "lb-bronze"];
+
+function renderLeaderboardList(elId, rows) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  el.innerHTML = "";
+  rows.forEach((r, i) => {
+    const rankClass = RANK_CLASSES[i] || "lb-plain";
+    const medal = MEDALS[i] || String(i + 1);
+    const winRate = r.entered ? Math.round((r.won / r.entered) * 100) : null;
+    const row = document.createElement("div");
+    row.className = "lb-row";
+    row.innerHTML = `
+      <span class="lb-medal ${rankClass}">${medal}</span>
+      <div class="lb-info">
+        <div class="lb-name">${r.user}${r.user === ADMIN_USER ? " ★" : ""}</div>
+        <div class="lb-meta">${r.entered} maç · ${r.won} kazandı · Toplam oran ${r.oddsSum.toFixed(2)}${winRate !== null ? " · %" + winRate + " isabet" : ""}</div>
+      </div>
+    `;
+    el.appendChild(row);
+  });
+}
+
+function renderLeaderboards() {
+  const now = new Date();
+  const wStart = startOfWeek(now), wEnd = endOfWeek(now);
+  const mStart = startOfMonth(now), mEnd = endOfMonth(now);
+
+  const weekRangeEl = document.getElementById("lb-week-range");
+  const monthRangeEl = document.getElementById("lb-month-range");
+  if (weekRangeEl) weekRangeEl.textContent = `${pad(wStart.getDate())}.${pad(wStart.getMonth() + 1)} – ${pad(wEnd.getDate())}.${pad(wEnd.getMonth() + 1)}`;
+  if (monthRangeEl) monthRangeEl.textContent = `${TR_MONTHS[now.getMonth()]} ${now.getFullYear()}`;
+
+  renderLeaderboardList("lb-week-list", computeLeaderboard(wStart, wEnd));
+  renderLeaderboardList("lb-month-list", computeLeaderboard(mStart, mEnd));
+}
+
+/* ============================================================
    STATS
    ============================================================ */
 function renderStats() {
+  renderLeaderboards();
+
   const finished = couponsCache.filter(c => couponStatusInfo(c).key === "won" || couponStatusInfo(c).key === "lost");
   const wonCount = finished.filter(c => couponStatusInfo(c).key === "won").length;
   const winRate = finished.length ? Math.round((wonCount / finished.length) * 100) : 0;
