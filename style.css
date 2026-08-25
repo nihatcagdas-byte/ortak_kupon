@@ -529,12 +529,12 @@ main.view{ padding:24px 28px 60px; max-width:900px; margin:0 auto; }
 /* ============================================================
    STATS LAYOUT (sol: haftalık · orta: genel · sağ: aylık)
    ============================================================ */
-.view-stats{ max-width:1520px; }
+main.view.view-stats{ max-width:1700px; }
 
 .stats-layout{
   display:grid;
-  grid-template-columns:310px 1fr 310px;
-  gap:36px;
+  grid-template-columns:300px 1fr 300px;
+  gap:32px;
   align-items:start;
 }
 .stats-side{ min-width:0; }
