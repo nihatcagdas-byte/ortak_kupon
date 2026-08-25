@@ -685,7 +685,12 @@ function renderLeaderboardList(elId, rows) {
       <span class="lb-medal ${rankClass}">${medal}</span>
       <div class="lb-info">
         <div class="lb-name">${r.user}${r.user === ADMIN_USER ? " ★" : ""}</div>
-        <div class="lb-meta">${r.entered} maç · ${r.won} kazandı · Toplam oran ${r.oddsSum.toFixed(2)}${winRate !== null ? " · %" + winRate + " isabet" : ""}</div>
+        <div class="lb-stats-row">
+          <span class="lb-chip">${r.entered} maç</span>
+          <span class="lb-chip">${r.won} kazandı</span>
+          <span class="lb-chip">Oran ${r.oddsSum.toFixed(2)}</span>
+          ${winRate !== null ? `<span class="lb-chip lb-chip-hit">%${winRate}</span>` : ""}
+        </div>
       </div>
     `;
     el.appendChild(row);
