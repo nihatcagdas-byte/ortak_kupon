@@ -647,7 +647,7 @@ async function submitMatch() {
    ============================================================ */
 function computeLeaderboard(rangeStart, rangeEnd) {
   const stats = {};
-  USERS.forEach(u => stats[u] = { user: u, entered: 0, won: 0, oddsSum: 0 });
+  USERS.forEach(u => stats[u] = { user: u, entered: 0, won: 0, wonOddsProduct: 1 });
 
   couponsCache.forEach(c => {
     if (!c.dateKey) return;
@@ -655,16 +655,19 @@ function computeLeaderboard(rangeStart, rangeEnd) {
     if (d < rangeStart || d > rangeEnd) return;
     USERS.forEach(u => {
       const m = c.matches ? c.matches[u] : null;
-      if (m) { stats[u].entered++; stats[u].oddsSum += Number(m.odds || 0); }
+      if (m) stats[u].entered++;
       const r = c.results ? c.results[u] : null;
-      if (r === "tuttu") stats[u].won++;
+      if (r === "tuttu") {
+        stats[u].won++;
+        if (m) stats[u].wonOddsProduct *= Number(m.odds || 1);
+      }
     });
   });
 
-  // Sıralama: önce kazanılan maç sayısı, eşitlikte toplam oran
+  // Sıralama: önce kazanılan maç sayısı, eşitlikte kazanılan maçların oran çarpımı
   return Object.values(stats).sort((a, b) => {
     if (b.won !== a.won) return b.won - a.won;
-    return b.oddsSum - a.oddsSum;
+    return b.wonOddsProduct - a.wonOddsProduct;
   });
 }
 
@@ -679,6 +682,7 @@ function renderLeaderboardList(elId, rows) {
     const rankClass = RANK_CLASSES[i] || "lb-plain";
     const medal = MEDALS[i] || String(i + 1);
     const winRate = r.entered ? Math.round((r.won / r.entered) * 100) : null;
+    const oddsLabel = r.won > 0 ? r.wonOddsProduct.toFixed(2) : "—";
     const row = document.createElement("div");
     row.className = "lb-row";
     row.innerHTML = `
@@ -688,7 +692,7 @@ function renderLeaderboardList(elId, rows) {
         <div class="lb-stats-row">
           <span class="lb-chip">${r.entered} maç</span>
           <span class="lb-chip">${r.won} kazandı</span>
-          <span class="lb-chip">Oran ${r.oddsSum.toFixed(2)}</span>
+          <span class="lb-chip">Oran ${oddsLabel}</span>
           ${winRate !== null ? `<span class="lb-chip lb-chip-hit">%${winRate}</span>` : ""}
         </div>
       </div>
