@@ -386,7 +386,9 @@ function renderCouponDetail(c) {
     const m = c.matches ? c.matches[user] : null;
     const result = c.results ? c.results[user] : null;
     const isSelf = user === currentUser;
-    const canEditThis = isAdmin() || (isSelf && !m);
+    const notPlayedYet = !c.playedBy;
+    const selfCanEdit = isSelf && notPlayedYet;
+    const canEditThis = isAdmin() || selfCanEdit;
     const slot = document.createElement("div");
 
     if (!m) {
@@ -417,9 +419,9 @@ function renderCouponDetail(c) {
         </div>
         <span class="slot-odds">${Number(m.odds).toFixed(2)}</span>
         ${resultBadge}
-        ${isAdmin() ? `<button class="slot-edit-btn" data-user="${user}" title="Düzenle">✎</button>` : ""}
+        ${canEditThis ? `<button class="slot-edit-btn" data-user="${user}" title="Düzenle">✎</button>` : ""}
       `;
-      if (isAdmin()) {
+      if (canEditThis) {
         slot.querySelector(".slot-edit-btn").addEventListener("click", () => openMatchModal(user, m, c.id));
       }
     }
@@ -619,9 +621,11 @@ function openMatchModal(targetUser, existingMatch, couponId) {
   document.getElementById("input-amount").value = existingMatch ? existingMatch.amount : "";
   document.getElementById("modal-error").classList.add("hidden");
   const heading = document.querySelector("#match-modal .ticket-eyebrow");
-  heading.textContent = targetUser === currentUser
-    ? "Maçını gir"
-    : `${targetUser} adına düzenle (Admin)`;
+  if (targetUser === currentUser) {
+    heading.textContent = existingMatch ? "Maçını düzenle" : "Maçını gir";
+  } else {
+    heading.textContent = `${targetUser} adına düzenle (Admin)`;
+  }
   document.getElementById("match-modal").classList.remove("hidden");
 }
 function closeMatchModal() {
