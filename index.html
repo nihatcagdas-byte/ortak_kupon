@@ -144,6 +144,37 @@
         <div id="player-stats" class="player-stats-grid">
           <!-- doldurulur: app.js -->
         </div>
+
+        <h3 class="subsection-title">Grafikler</h3>
+        <div class="chart-filters">
+          <div class="filter-group">
+            <span class="filter-label">Dönem</span>
+            <div class="filter-btns" id="chart-period-btns">
+              <button class="filter-btn active" data-period="week">Bu Hafta</button>
+              <button class="filter-btn" data-period="month">Bu Ay</button>
+              <button class="filter-btn" data-period="all">Tüm Zamanlar</button>
+            </div>
+          </div>
+          <div class="filter-group">
+            <span class="filter-label">Metrik</span>
+            <div class="filter-btns" id="chart-metric-btns">
+              <button class="filter-btn active" data-metric="entered">Girilen Maç</button>
+              <button class="filter-btn" data-metric="won">Kazanılan Maç</button>
+              <button class="filter-btn" data-metric="hitrate">İsabet Oranı</button>
+              <button class="filter-btn" data-metric="amount">Toplam Yatırım</button>
+              <button class="filter-btn" data-metric="oddsproduct">Oran Çarpımı</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-card-title">Karşılaştırma</div>
+          <canvas id="chart-bar" height="200"></canvas>
+        </div>
+        <div class="chart-card">
+          <div class="chart-card-title">Zaman İçindeki Gidişat (Kümülatif)</div>
+          <canvas id="chart-line" height="200"></canvas>
+        </div>
       </div>
 
       <aside class="stats-side">
@@ -201,6 +232,7 @@
 
 <div id="toast" class="toast hidden"></div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script type="module" src="firebase-config.js"></script>
 <script type="module" src="app.js"></script>
 </body>

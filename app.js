@@ -20,6 +20,15 @@ let unsubPool = null;
 let modalTargetUser = null;
 let poolBalance = 0;
 const poolRef = doc(db, "meta", "pool");
+let chartPeriod = "week";
+let chartMetric = "entered";
+let barChartInstance = null;
+let lineChartInstance = null;
+const USER_COLORS = { Nihat: "#D9A62E", Mahir: "#3B6EA5", Cenk: "#B84A3E", Ebuzer: "#3F8F5C" };
+const METRIC_LABELS = {
+  entered: "Girilen Maç", won: "Kazanılan Maç", hitrate: "İsabet Oranı (%)",
+  amount: "Toplam Yatırım (₺)", oddsproduct: "Oran Çarpımı"
+};
 
 const pinState = { mode: "login", stage: "first", first: "", current: "", targetName: null };
 
@@ -645,9 +654,9 @@ async function submitMatch() {
 /* ============================================================
    LEADERBOARD (Haftalık / Aylık)
    ============================================================ */
-function computeLeaderboard(rangeStart, rangeEnd) {
+function computeUserStatsInRange(rangeStart, rangeEnd) {
   const stats = {};
-  USERS.forEach(u => stats[u] = { user: u, entered: 0, won: 0, wonOddsProduct: 1 });
+  USERS.forEach(u => stats[u] = { user: u, entered: 0, won: 0, amount: 0, wonOddsProduct: 1 });
 
   couponsCache.forEach(c => {
     if (!c.dateKey) return;
@@ -655,7 +664,7 @@ function computeLeaderboard(rangeStart, rangeEnd) {
     if (d < rangeStart || d > rangeEnd) return;
     USERS.forEach(u => {
       const m = c.matches ? c.matches[u] : null;
-      if (m) stats[u].entered++;
+      if (m) { stats[u].entered++; stats[u].amount += Number(m.amount || 0); }
       const r = c.results ? c.results[u] : null;
       if (r === "tuttu") {
         stats[u].won++;
@@ -664,7 +673,22 @@ function computeLeaderboard(rangeStart, rangeEnd) {
     });
   });
 
-  // Sıralama: önce kazanılan maç sayısı, eşitlikte kazanılan maçların oran çarpımı
+  return stats;
+}
+
+function metricValue(stat, metric) {
+  switch (metric) {
+    case "entered": return stat.entered;
+    case "won": return stat.won;
+    case "hitrate": return stat.entered ? Math.round((stat.won / stat.entered) * 100) : 0;
+    case "amount": return stat.amount;
+    case "oddsproduct": return stat.won > 0 ? Number(stat.wonOddsProduct.toFixed(2)) : 0;
+    default: return 0;
+  }
+}
+
+function computeLeaderboard(rangeStart, rangeEnd) {
+  const stats = computeUserStatsInRange(rangeStart, rangeEnd);
   return Object.values(stats).sort((a, b) => {
     if (b.won !== a.won) return b.won - a.won;
     return b.wonOddsProduct - a.wonOddsProduct;
@@ -716,10 +740,133 @@ function renderLeaderboards() {
 }
 
 /* ============================================================
+   CHARTS
+   ============================================================ */
+function getPeriodRange(period) {
+  const now = new Date();
+  if (period === "week") return { start: startOfWeek(now), end: endOfWeek(now) };
+  if (period === "month") return { start: startOfMonth(now), end: endOfMonth(now) };
+  return { start: new Date(2000, 0, 1), end: new Date(2100, 0, 1) };
+}
+
+function getTrendBuckets(period) {
+  const now = new Date();
+  if (period === "week") {
+    const start = startOfWeek(now);
+    const labels = ["Pzt", "Sal", "Çrş", "Prş", "Cum", "Cmt", "Paz"];
+    return labels.map((label, i) => {
+      const end = new Date(start);
+      end.setDate(start.getDate() + i);
+      end.setHours(23, 59, 59, 999);
+      return { label, rangeStart: start, rangeEnd: end };
+    });
+  }
+  if (period === "month") {
+    const start = startOfMonth(now);
+    const daysInMonth = endOfMonth(now).getDate();
+    const totalWeeks = Math.ceil(daysInMonth / 7);
+    const buckets = [];
+    for (let w = 1; w <= totalWeeks; w++) {
+      const endDay = Math.min(w * 7, daysInMonth);
+      const rangeEnd = new Date(start.getFullYear(), start.getMonth(), endDay, 23, 59, 59, 999);
+      buckets.push({ label: `${w}. Hafta`, rangeStart: start, rangeEnd });
+    }
+    return buckets;
+  }
+  // all — veri var olan her ay için tek tek kova
+  const veryStart = new Date(2000, 0, 1);
+  let earliest = now;
+  couponsCache.forEach(c => {
+    if (c.dateKey) { const d = parseDateKey(c.dateKey); if (d < earliest) earliest = d; }
+  });
+  const cursor = new Date(earliest.getFullYear(), earliest.getMonth(), 1);
+  const last = new Date(now.getFullYear(), now.getMonth(), 1);
+  const buckets = [];
+  while (cursor <= last) {
+    const rangeEnd = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0, 23, 59, 59, 999);
+    buckets.push({ label: `${TR_MONTHS[cursor.getMonth()].slice(0, 3)} ${String(cursor.getFullYear()).slice(2)}`, rangeStart: veryStart, rangeEnd });
+    cursor.setMonth(cursor.getMonth() + 1);
+  }
+  if (buckets.length === 0) {
+    buckets.push({ label: `${TR_MONTHS[now.getMonth()].slice(0, 3)} ${String(now.getFullYear()).slice(2)}`, rangeStart: veryStart, rangeEnd: endOfMonth(now) });
+  }
+  return buckets;
+}
+
+function renderCharts() {
+  if (typeof Chart === "undefined") return;
+
+  // ---- Çubuk grafik: karşılaştırma ----
+  const { start, end } = getPeriodRange(chartPeriod);
+  const stats = Object.values(computeUserStatsInRange(start, end));
+  const barRows = stats
+    .map(s => ({ user: s.user, value: metricValue(s, chartMetric) }))
+    .sort((a, b) => b.value - a.value);
+
+  const barCtx = document.getElementById("chart-bar");
+  if (barCtx) {
+    if (barChartInstance) barChartInstance.destroy();
+    barChartInstance = new Chart(barCtx, {
+      type: "bar",
+      data: {
+        labels: barRows.map(r => r.user),
+        datasets: [{
+          label: METRIC_LABELS[chartMetric],
+          data: barRows.map(r => r.value),
+          backgroundColor: barRows.map(r => USER_COLORS[r.user] || "#999"),
+          borderRadius: 6,
+          maxBarThickness: 56
+        }]
+      },
+      options: {
+        indexAxis: "y",
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { beginAtZero: true, ticks: { precision: 0 } },
+          y: { grid: { display: false } }
+        }
+      }
+    });
+  }
+
+  // ---- Çizgi grafik: kümülatif trend ----
+  const buckets = getTrendBuckets(chartPeriod);
+  const lineDatasets = USERS.map(u => ({
+    label: u,
+    data: buckets.map(b => {
+      const s = computeUserStatsInRange(b.rangeStart, b.rangeEnd)[u];
+      return metricValue(s, chartMetric);
+    }),
+    borderColor: USER_COLORS[u] || "#999",
+    backgroundColor: USER_COLORS[u] || "#999",
+    tension: 0.3,
+    pointRadius: 3
+  }));
+
+  const lineCtx = document.getElementById("chart-line");
+  if (lineCtx) {
+    if (lineChartInstance) lineChartInstance.destroy();
+    lineChartInstance = new Chart(lineCtx, {
+      type: "line",
+      data: { labels: buckets.map(b => b.label), datasets: lineDatasets },
+      options: {
+        responsive: true,
+        plugins: { legend: { position: "bottom", labels: { boxWidth: 12 } } },
+        scales: {
+          y: { beginAtZero: true, ticks: { precision: 0 } }
+        }
+      }
+    });
+  }
+}
+
+/* ============================================================
    STATS
    ============================================================ */
 function renderStats() {
   renderLeaderboards();
+  renderCharts();
 
   const finished = couponsCache.filter(c => couponStatusInfo(c).key === "won" || couponStatusInfo(c).key === "lost");
   const wonCount = finished.filter(c => couponStatusInfo(c).key === "won").length;
@@ -808,7 +955,28 @@ document.getElementById("pin-del").addEventListener("click", handlePinDelete);
 document.getElementById("logout-btn").addEventListener("click", logout);
 
 document.querySelectorAll(".nav-btn").forEach(btn => {
-  btn.addEventListener("click", () => switchView(btn.dataset.view));
+  btn.addEventListener("click", () => {
+    switchView(btn.dataset.view);
+    if (btn.dataset.view === "stats") renderCharts();
+  });
+});
+
+document.querySelectorAll("#chart-period-btns .filter-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll("#chart-period-btns .filter-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    chartPeriod = btn.dataset.period;
+    renderCharts();
+  });
+});
+
+document.querySelectorAll("#chart-metric-btns .filter-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll("#chart-metric-btns .filter-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    chartMetric = btn.dataset.metric;
+    renderCharts();
+  });
 });
 
 document.getElementById("new-coupon-btn").addEventListener("click", createNewCoupon);

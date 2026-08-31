@@ -587,6 +587,44 @@ main.view.view-stats{ max-width:1700px; }
 }
 
 /* ============================================================
+   CHARTS
+   ============================================================ */
+.chart-filters{
+  display:flex; flex-wrap:wrap; gap:24px;
+  margin:18px 0 22px;
+}
+.filter-group{ display:flex; flex-direction:column; gap:8px; }
+.filter-label{
+  font-family:var(--font-mono); font-size:10px; text-transform:uppercase;
+  letter-spacing:1.5px; color:rgba(242,238,225,0.5);
+}
+.filter-btns{ display:flex; flex-wrap:wrap; gap:6px; }
+.filter-btn{
+  background:rgba(242,238,225,0.07);
+  border:1px solid rgba(242,238,225,0.2);
+  color:var(--paper);
+  font-family:var(--font-mono); font-size:11px;
+  padding:7px 13px; border-radius:20px; cursor:pointer;
+  transition:background .12s ease;
+}
+.filter-btn:hover{ background:rgba(242,238,225,0.14); }
+.filter-btn.active{
+  background:var(--gold-bright); color:var(--pitch-deep);
+  border-color:var(--gold-bright); font-weight:600;
+}
+
+.chart-card{
+  background:var(--paper); color:var(--ink);
+  border-radius:14px; padding:20px 22px;
+  margin-bottom:18px;
+  box-shadow:0 5px 0 rgba(0,0,0,0.18);
+}
+.chart-card-title{
+  font-family:var(--font-display); font-size:15px; text-transform:uppercase;
+  letter-spacing:0.4px; color:var(--pitch); margin-bottom:16px;
+}
+
+/* ============================================================
    MODAL
    ============================================================ */
 .modal-overlay{
