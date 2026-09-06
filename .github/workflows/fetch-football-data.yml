@@ -1,0 +1,30 @@
+name: Fetch Football Data
+
+on:
+  schedule:
+    - cron: "0 6 * * *"   # 09:00 Türkiye saati (UTC+3)
+    - cron: "0 9 * * *"   # 12:00 Türkiye saati (UTC+3)
+  workflow_dispatch: {}    # Settings > Actions'tan elle de tetiklenebilir
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        working-directory: scripts
+        run: npm install
+
+      - name: Fetch data and write to Firestore
+        working-directory: scripts
+        env:
+          API_FOOTBALL_KEY: ${{ secrets.API_FOOTBALL_KEY }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: node fetch-football-data.js
