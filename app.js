@@ -731,15 +731,14 @@ function renderLeaderboardList(elId, rows) {
 
 function renderLeaderboards() {
   const now = new Date();
-  const wStart = startOfWeek(now), wEnd = endOfWeek(now);
   const mStart = startOfMonth(now), mEnd = endOfMonth(now);
 
-  const weekRangeEl = document.getElementById("lb-week-range");
+  const allRangeEl = document.getElementById("lb-week-range");
   const monthRangeEl = document.getElementById("lb-month-range");
-  if (weekRangeEl) weekRangeEl.textContent = `${pad(wStart.getDate())}.${pad(wStart.getMonth() + 1)} – ${pad(wEnd.getDate())}.${pad(wEnd.getMonth() + 1)}`;
+  if (allRangeEl) allRangeEl.textContent = "Başlangıçtan bugüne";
   if (monthRangeEl) monthRangeEl.textContent = `${TR_MONTHS[now.getMonth()]} ${now.getFullYear()}`;
 
-  renderLeaderboardList("lb-week-list", computeLeaderboard(wStart, wEnd));
+  renderLeaderboardList("lb-week-list", computeLeaderboard(new Date(2000, 0, 1), new Date(2100, 0, 1)));
   renderLeaderboardList("lb-month-list", computeLeaderboard(mStart, mEnd));
 }
 
