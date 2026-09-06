@@ -1,0 +1,10 @@
+{
+  "name": "fetch-football-data",
+  "version": "1.0.0",
+  "private": true,
+  "description": "GitHub Actions için: API-Football'dan günlük maç ve oran verisi çekip Firestore'a yazar.",
+  "main": "fetch-football-data.js",
+  "dependencies": {
+    "firebase-admin": "^12.6.0"
+  }
+}

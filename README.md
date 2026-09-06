@@ -65,9 +65,26 @@ Firebase Console → Firestore Database → **Rules** sekmesine git,
 ## Dosya yapısı
 
 ```
-index.html          → sayfa iskeleti (giriş, ana ekran, kupon, istatistik)
-style.css            → tüm tasarım (stadyum yeşili + kağıt bilet teması)
-app.js                → uygulama mantığı (Firestore okuma/yazma, ekran geçişleri)
-firebase-config.js   → kendi Firebase bilgilerinizi girdiğiniz dosya
-firestore.rules      → Firebase Console'a yapıştıracağınız güvenlik kuralları
+index.html               → sayfa iskeleti (giriş, ana ekran, kupon, istatistik, maçlar, kurallar)
+style.css                 → tüm tasarım
+app.js                     → uygulama mantığı (Firestore okuma/yazma, ekran geçişleri)
+firebase-config.js        → kendi Firebase bilgilerinizi girdiğiniz dosya
+firestore.rules           → Firebase Console'a yapıştıracağınız güvenlik kuralları
+scripts/fetch-football-data.js  → GitHub Actions'ın günde 2 kez çalıştırdığı veri çekme scripti
+scripts/package.json      → scriptin bağımlılığı (firebase-admin)
+.github/workflows/fetch-football-data.yml → günde 2 kez (09:00 ve 12:00) otomatik çalışan görev
 ```
+
+## "Maçlar" sayfası — nasıl çalışıyor
+
+- API-Football'dan (api-football.com, ücretsiz plan) günde 2 kez, GitHub Actions üzerinden
+  takip edilen liglerdeki maçlar + Bet365 referanslı oranlar çekilip Firestore'a yazılır.
+- API anahtarı hiçbir zaman siteye/tarayıcıya gitmez, sadece GitHub Secrets içinde durur.
+- Site, bu veriyi doğrudan Firestore'dan okur — canlı akış değildir, günde 2 kez tazelenir.
+- Takip edilen ligleri değiştirmek isterseniz `scripts/fetch-football-data.js` içindeki
+  `LEAGUES` listesini düzenleyin.
+- Gerekli GitHub Secrets: `API_FOOTBALL_KEY` (api-football.com'dan) ve
+  `FIREBASE_SERVICE_ACCOUNT` (Firebase Console > Project Settings > Service Accounts >
+  Generate new private key ile indirilen .json dosyasının tüm içeriği).
+- Görevi elle tetiklemek isterseniz: GitHub reposu > Actions > "Fetch Football Data" >
+  "Run workflow".

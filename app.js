@@ -185,6 +185,7 @@ function logout() {
   if (unsubCouponList) unsubCouponList();
   if (unsubCouponDetail) unsubCouponDetail();
   if (unsubPool) unsubPool();
+  if (unsubMatches) unsubMatches();
   document.getElementById("app-shell").classList.add("hidden");
   document.getElementById("view-login").classList.add("active");
   document.getElementById("pin-pad").classList.add("hidden");
@@ -203,6 +204,7 @@ function enterApp() {
   switchView("home");
   subscribeCouponList();
   subscribePool();
+  subscribeMatches();
 }
 
 /* ============================================================
@@ -252,6 +254,89 @@ async function adjustPoolManually() {
     console.error(err);
     showToast("Havuz güncellenemedi: " + (err.code || err.message));
   }
+}
+
+/* ============================================================
+   MAÇLAR (API-Football'dan günde 2 kez çekilen veri)
+   ============================================================ */
+let unsubMatches = null;
+
+function subscribeMatches() {
+  if (unsubMatches) unsubMatches();
+  const dateKey = dateKeyFor(new Date());
+  unsubMatches = onSnapshot(doc(db, "liveMatches", dateKey), (snap) => {
+    if (!snap.exists()) {
+      renderMatches(null);
+      return;
+    }
+    renderMatches(snap.data());
+  }, (err) => {
+    console.error("Maç verisi okunamadı:", err);
+    renderMatches(null);
+  });
+}
+
+function matchStatusLabel(m) {
+  const live = ["1H", "2H", "HT", "ET", "P", "LIVE"];
+  const finished = ["FT", "AET", "PEN"];
+  if (live.includes(m.status)) return { text: m.elapsed ? `${m.elapsed}'` : "CANLI", live: true };
+  if (finished.includes(m.status)) return { text: "MS", live: false };
+  // Henüz oynanmadı — saat göster
+  const d = new Date(m.date);
+  return { text: `${pad(d.getHours())}:${pad(d.getMinutes())}`, live: false };
+}
+
+function renderMatches(data) {
+  const listEl = document.getElementById("matches-list");
+  const updatedEl = document.getElementById("matches-updated");
+  if (!listEl) return;
+
+  if (!data || !data.matches || data.matches.length === 0) {
+    updatedEl.textContent = data && data.updatedAt ? `Son güncelleme: ${formatTimestamp(data.updatedAt)}` : "Henüz veri yok";
+    listEl.innerHTML = `<div class="matches-empty">Bugün takip edilen liglerde maç görünmüyor (ya da veri henüz çekilmedi — ilk çekim saat 09:00'da).</div>`;
+    return;
+  }
+
+  updatedEl.textContent = `Son güncelleme: ${formatTimestamp(data.updatedAt)}`;
+
+  const byLeague = {};
+  data.matches.forEach(m => {
+    if (!byLeague[m.league]) byLeague[m.league] = [];
+    byLeague[m.league].push(m);
+  });
+
+  listEl.innerHTML = "";
+  Object.keys(byLeague).forEach(league => {
+    const group = document.createElement("div");
+    group.className = "league-group";
+    group.innerHTML = `<div class="league-group-title">${escapeHtml(league)}</div>`;
+    byLeague[league].forEach(m => {
+      const st = matchStatusLabel(m);
+      const hasScore = m.goalsHome !== null && m.goalsHome !== undefined;
+      const card = document.createElement("div");
+      card.className = "match-card";
+      card.innerHTML = `
+        <span class="match-time ${st.live ? "match-live" : ""}">${st.text}</span>
+        <span class="match-teams">${escapeHtml(m.home)} — ${escapeHtml(m.away)}</span>
+        ${hasScore ? `<span class="match-score">${m.goalsHome} - ${m.goalsAway}</span>` : ""}
+        ${m.odds ? `
+          <span class="match-odds">
+            <span class="match-odds-chip">${m.odds.home || "-"}<span>1</span></span>
+            <span class="match-odds-chip">${m.odds.draw || "-"}<span>X</span></span>
+            <span class="match-odds-chip">${m.odds.away || "-"}<span>2</span></span>
+          </span>
+        ` : ""}
+      `;
+      group.appendChild(card);
+    });
+    listEl.appendChild(group);
+  });
+}
+
+function formatTimestamp(ts) {
+  if (!ts || !ts.toDate) return "—";
+  const d = ts.toDate();
+  return `${pad(d.getDate())}.${pad(d.getMonth() + 1)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 /* ============================================================

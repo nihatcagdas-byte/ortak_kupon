@@ -58,6 +58,7 @@
     </div>
     <nav class="topbar-nav">
       <button class="nav-btn active" data-view="home">Kuponlar</button>
+      <button class="nav-btn" data-view="matches">Maçlar</button>
       <button class="nav-btn" data-view="stats">İstatistik</button>
       <button class="nav-btn nav-btn-rules" data-view="rules">Kurallar</button>
     </nav>
@@ -190,6 +191,24 @@
         </div>
       </aside>
 
+    </div>
+  </main>
+
+  <!-- ============ MATCHES (canlı veri) ============ -->
+  <main id="view-matches" class="view view-matches">
+    <div class="matches-head">
+      <div>
+        <h2 class="section-title">Maçlar</h2>
+        <p class="section-sub">Bugünün maçları, skorları ve oranları.</p>
+      </div>
+      <div id="matches-updated" class="matches-updated">—</div>
+    </div>
+    <p class="matches-note">
+      ℹ️ Veriler günde 2 kez (09:00 ve 12:00) otomatik güncellenir, canlı akış değildir.
+      Oranlar Bet365 referanslıdır, <strong>resmi İddaa oranı değildir</strong> — yaklaşık piyasa oranı olarak düşünün.
+    </p>
+    <div id="matches-list" class="matches-list">
+      <!-- doldurulur: app.js -->
     </div>
   </main>
 

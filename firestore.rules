@@ -27,5 +27,18 @@ service cloud.firestore {
       // burada sadece "sitemizden gelen istek mi" kontrolü yapılabiliyor.
       allow delete: if request.auth != null;
     }
+
+    // Ortak kasa (havuz) bakiyesi
+    match /meta/{docId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    // Günlük maç/oran verisi — sadece GitHub Actions (Admin SDK, kuralları
+    // atlar) yazar. İstemciler sadece okuyabilir, yazamaz.
+    match /liveMatches/{dateKey} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
   }
 }
