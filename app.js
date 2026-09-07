@@ -313,24 +313,84 @@ function renderMatches(data) {
     byLeague[league].forEach(m => {
       const st = matchStatusLabel(m);
       const hasScore = m.goalsHome !== null && m.goalsHome !== undefined;
-      const card = document.createElement("div");
-      card.className = "match-card";
-      card.innerHTML = `
-        <span class="match-time ${st.live ? "match-live" : ""}">${st.text}</span>
-        <span class="match-teams">${escapeHtml(m.home)} — ${escapeHtml(m.away)}</span>
-        ${hasScore ? `<span class="match-score">${m.goalsHome} - ${m.goalsAway}</span>` : ""}
-        ${m.odds ? `
-          <span class="match-odds">
-            <span class="match-odds-chip">${m.odds.home || "-"}<span>1</span></span>
-            <span class="match-odds-chip">${m.odds.draw || "-"}<span>X</span></span>
-            <span class="match-odds-chip">${m.odds.away || "-"}<span>2</span></span>
-          </span>
-        ` : ""}
+      const wrap = document.createElement("div");
+      wrap.className = "match-card-wrap";
+      wrap.innerHTML = `
+        <div class="match-card">
+          <span class="match-time ${st.live ? "match-live" : ""}">${st.text}</span>
+          <span class="match-teams">${escapeHtml(m.home)} — ${escapeHtml(m.away)}</span>
+          ${hasScore ? `<span class="match-score">${m.goalsHome} - ${m.goalsAway}</span>` : ""}
+          ${m.odds ? `
+            <span class="match-odds">
+              <span class="match-odds-chip">${m.odds.home || "-"}<span>1</span></span>
+              <span class="match-odds-chip">${m.odds.draw || "-"}<span>X</span></span>
+              <span class="match-odds-chip">${m.odds.away || "-"}<span>2</span></span>
+            </span>
+          ` : ""}
+          ${m.stats ? `<button class="match-detail-toggle" data-target="stats-${m.fixtureId}">İstatistik ▾</button>` : ""}
+        </div>
+        ${m.stats ? buildStatsPanel(m) : ""}
       `;
-      group.appendChild(card);
+      group.appendChild(wrap);
     });
     listEl.appendChild(group);
   });
+
+  listEl.querySelectorAll(".match-detail-toggle").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const panel = document.getElementById(btn.dataset.target);
+      if (!panel) return;
+      const nowHidden = panel.classList.toggle("hidden");
+      btn.textContent = nowHidden ? "İstatistik ▾" : "İstatistik ▴";
+    });
+  });
+}
+
+function formChips(formStr) {
+  if (!formStr) return `<span class="form-empty">—</span>`;
+  return formStr.slice(-5).split("").map(c => {
+    const cls = c === "W" ? "form-w" : c === "D" ? "form-d" : c === "L" ? "form-l" : "form-empty";
+    return `<span class="form-chip ${cls}">${c}</span>`;
+  }).join("");
+}
+
+function buildStatsPanel(m) {
+  const s = m.stats;
+  const h2hRows = (s.h2h || []).map(h => {
+    const d = new Date(h.date);
+    return `<div class="h2h-row">
+      <span class="h2h-date">${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}</span>
+      <span class="h2h-teams">${escapeHtml(h.home)} ${h.goalsHome}-${h.goalsAway} ${escapeHtml(h.away)}</span>
+    </div>`;
+  }).join("") || `<p class="stats-empty">Geçmiş karşılaşma verisi yok.</p>`;
+
+  return `
+    <div id="stats-${m.fixtureId}" class="match-detail hidden">
+      <div class="stats-grid">
+        <div class="stats-col">
+          <div class="stats-col-title">${escapeHtml(m.home)}</div>
+          <div class="stats-line"><span>Form (son 5)</span><span class="form-chips">${formChips(s.form.home)}</span></div>
+          <div class="stats-line"><span>Attığı gol ort.</span><span>${s.goalsAvg.homeFor ?? "—"}</span></div>
+          <div class="stats-line"><span>Yediği gol ort.</span><span>${s.goalsAvg.homeAgainst ?? "—"}</span></div>
+        </div>
+        <div class="stats-col">
+          <div class="stats-col-title">${escapeHtml(m.away)}</div>
+          <div class="stats-line"><span>Form (son 5)</span><span class="form-chips">${formChips(s.form.away)}</span></div>
+          <div class="stats-line"><span>Attığı gol ort.</span><span>${s.goalsAvg.awayFor ?? "—"}</span></div>
+          <div class="stats-line"><span>Yediği gol ort.</span><span>${s.goalsAvg.awayAgainst ?? "—"}</span></div>
+        </div>
+      </div>
+      <div class="stats-predict">
+        ${s.winPercent ? `<span class="predict-chip">Ev %${(s.winPercent.home || "-").replace("%", "")} · Berabere %${(s.winPercent.draw || "-").replace("%", "")} · Dep %${(s.winPercent.away || "-").replace("%", "")}</span>` : ""}
+        ${s.underOver ? `<span class="predict-chip">Alt/Üst: ${s.underOver}</span>` : ""}
+        ${s.predictedGoals && (s.predictedGoals.home || s.predictedGoals.away) ? `<span class="predict-chip">Beklenen gol: ${s.predictedGoals.home ?? "?"} - ${s.predictedGoals.away ?? "?"}</span>` : ""}
+      </div>
+      <div class="stats-h2h">
+        <div class="stats-col-title">Son karşılaşmalar</div>
+        ${h2hRows}
+      </div>
+    </div>
+  `;
 }
 
 function formatTimestamp(ts) {
