@@ -16,12 +16,12 @@ import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.2/firebas
 import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 const firebaseConfig = {
-  apiKey: "BURAYA_API_KEY",
-  authDomain: "BURAYA_PROJE.firebaseapp.com",
-  projectId: "BURAYA_PROJE_ID",
-  storageBucket: "BURAYA_PROJE.appspot.com",
-  messagingSenderId: "BURAYA_SENDER_ID",
-  appId: "BURAYA_APP_ID"
+  apiKey: "AIzaSyClENcWk3y4xYWHKc6KFKBES5cXF9BLPhc",
+  authDomain: "maclar-e8b25.firebaseapp.com",
+  projectId: "maclar-e8b25",
+  storageBucket: "maclar-e8b25.firebasestorage.app",
+  messagingSenderId: "889862054206",
+  appId: "1:889862054206:web:7847721c38b08ef8780c6f"
 };
 
 export const app = initializeApp(firebaseConfig);
