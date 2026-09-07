@@ -89,6 +89,48 @@ async function main() {
     }
   }
 
+  // Her maç için istatistik/tahmin verisi çek (gol ortalaması, alt-üst,
+  // form, H2H) — API-Football'ın /predictions uç noktası bunların hepsini
+  // tek çağrıda veriyor, maç başına sadece 1 istek.
+  const statsByFixture = {};
+  for (const f of fixtures) {
+    try {
+      const predResp = await apiGet(`/predictions?fixture=${f.fixture.id}`);
+      const p = predResp[0];
+      if (!p) continue;
+
+      const homeTeam = p.teams && p.teams.home;
+      const awayTeam = p.teams && p.teams.away;
+
+      statsByFixture[f.fixture.id] = {
+        advice: (p.predictions && p.predictions.advice) || null,
+        underOver: (p.predictions && p.predictions.under_over) || null,
+        winPercent: (p.predictions && p.predictions.percent) || null, // {home, draw, away}
+        predictedGoals: (p.predictions && p.predictions.goals) || null, // {home, away}
+        form: {
+          home: (homeTeam && homeTeam.league && homeTeam.league.form) || null,
+          away: (awayTeam && awayTeam.league && awayTeam.league.form) || null
+        },
+        goalsAvg: {
+          homeFor: homeTeam?.league?.goals?.for?.average?.total ?? null,
+          homeAgainst: homeTeam?.league?.goals?.against?.average?.total ?? null,
+          awayFor: awayTeam?.league?.goals?.for?.average?.total ?? null,
+          awayAgainst: awayTeam?.league?.goals?.against?.average?.total ?? null
+        },
+        h2h: (p.h2h || []).slice(0, 5).map(h => ({
+          date: h.fixture.date,
+          home: h.teams.home.name,
+          away: h.teams.away.name,
+          goalsHome: h.goals.home,
+          goalsAway: h.goals.away
+        }))
+      };
+    } catch (err) {
+      console.error(`Tahmin/istatistik çekilemedi (fixture ${f.fixture.id}):`, err.message);
+    }
+  }
+  console.log(`${Object.keys(statsByFixture).length}/${fixtures.length} maç için istatistik alındı.`);
+
   const matches = fixtures.map(f => ({
     fixtureId: f.fixture.id,
     league: f.league.name,
@@ -104,7 +146,8 @@ async function main() {
     awayLogo: f.teams.away.logo,
     goalsHome: f.goals.home,
     goalsAway: f.goals.away,
-    odds: oddsByFixture[f.fixture.id] || null
+    odds: oddsByFixture[f.fixture.id] || null,
+    stats: statsByFixture[f.fixture.id] || null
   }));
 
   // Ligine ve saatine göre sırala
@@ -117,7 +160,7 @@ async function main() {
     matches
   });
 
-  console.log(`Firestore'a yazıldı: ${matches.length} maç, ${Object.keys(oddsByFixture).length} maçta oran var.`);
+  console.log(`Firestore'a yazıldı: ${matches.length} maç, ${Object.keys(oddsByFixture).length} maçta oran, ${Object.keys(statsByFixture).length} maçta istatistik var.`);
 }
 
 main().catch(err => {
