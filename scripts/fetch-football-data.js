@@ -44,10 +44,19 @@ function todayKeyIstanbul() {
   return fmt.format(new Date()); // "YYYY-MM-DD"
 }
 
-async function apiGet(path) {
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function apiGet(path, retries = 2) {
   const res = await fetch(`https://v3.football.api-sports.io${path}`, {
     headers: { "x-apisports-key": API_KEY }
   });
+  if (res.status === 429 && retries > 0) {
+    console.log(`429 alındı, 15sn bekleyip tekrar denenecek: ${path}`);
+    await sleep(15000);
+    return apiGet(path, retries - 1);
+  }
   if (!res.ok) throw new Error(`API hatası ${res.status}: ${path}`);
   const json = await res.json();
   return json.response || [];
@@ -87,6 +96,7 @@ async function main() {
     } catch (err) {
       console.error(`Oran çekilemedi (${league.name}):`, err.message);
     }
+    await sleep(2000); // dakikalık istek limitine takılmamak için bekle
   }
 
   // Her maç için istatistik/tahmin verisi çek (gol ortalaması, alt-üst,
@@ -128,6 +138,7 @@ async function main() {
     } catch (err) {
       console.error(`Tahmin/istatistik çekilemedi (fixture ${f.fixture.id}):`, err.message);
     }
+    await sleep(2000); // dakikalık istek limitine takılmamak için bekle
   }
   console.log(`${Object.keys(statsByFixture).length}/${fixtures.length} maç için istatistik alındı.`);
 
