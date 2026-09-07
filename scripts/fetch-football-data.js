@@ -69,8 +69,14 @@ async function main() {
     if (!hasMatch) continue;
     try {
       const oddsResp = await apiGet(`/odds?date=${dateKey}&league=${league.id}&bookmaker=${BOOKMAKER_ID}`);
+      console.log(`[${league.name}] /odds yanıtı: ${oddsResp.length} kayıt`);
+      if (oddsResp.length > 0) {
+        const firstBookmaker = (oddsResp[0].bookmakers || [])[0];
+        const betNames = firstBookmaker ? (firstBookmaker.bets || []).map(b => b.name) : [];
+        console.log(`[${league.name}] ilk kayıttaki bahis türleri:`, betNames);
+      }
       oddsResp.forEach(entry => {
-        const bookmaker = (entry.bookmakers || [])[0];
+        const bookmaker = (entry.bookmakers || []).find(b => b.id === BOOKMAKER_ID) || (entry.bookmakers || [])[0];
         const market = bookmaker && bookmaker.bets && bookmaker.bets.find(b => b.name === "Match Winner");
         if (market) {
           const vals = {};
