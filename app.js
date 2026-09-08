@@ -260,10 +260,13 @@ async function adjustPoolManually() {
    MAÇLAR (API-Football'dan günde 2 kez çekilen veri)
    ============================================================ */
 let unsubMatches = null;
+let matchesDay = "today";
 
 function subscribeMatches() {
   if (unsubMatches) unsubMatches();
-  const dateKey = dateKeyFor(new Date());
+  const base = new Date();
+  if (matchesDay === "tomorrow") base.setDate(base.getDate() + 1);
+  const dateKey = dateKeyFor(base);
   unsubMatches = onSnapshot(doc(db, "liveMatches", dateKey), (snap) => {
     if (!snap.exists()) {
       renderMatches(null);
@@ -293,7 +296,8 @@ function renderMatches(data) {
 
   if (!data || !data.matches || data.matches.length === 0) {
     updatedEl.textContent = data && data.updatedAt ? `Son güncelleme: ${formatTimestamp(data.updatedAt)}` : "Henüz veri yok";
-    listEl.innerHTML = `<div class="matches-empty">Bugün takip edilen liglerde maç görünmüyor (ya da veri henüz çekilmedi — ilk çekim saat 09:00'da).</div>`;
+    const when = matchesDay === "tomorrow" ? "yarın (veri saat 12:00'de çekilir)" : "bugün (veri saat 09:00'da çekilir)";
+    listEl.innerHTML = `<div class="matches-empty">Takip edilen liglerde ${when} maç görünmüyor ya da veri henüz çekilmedi.</div>`;
     return;
   }
 
@@ -354,6 +358,14 @@ function formChips(formStr) {
   }).join("");
 }
 
+function combinedGoalsChip(goalsAvg) {
+  const home = parseFloat(goalsAvg.homeFor);
+  const away = parseFloat(goalsAvg.awayFor);
+  if (isNaN(home) || isNaN(away)) return "";
+  const total = (home + away).toFixed(2);
+  return `<span class="predict-chip">Olası toplam gol*: ${total}</span>`;
+}
+
 function buildStatsPanel(m) {
   const s = m.stats;
   const h2hRows = (s.h2h || []).map(h => {
@@ -382,9 +394,9 @@ function buildStatsPanel(m) {
       </div>
       <div class="stats-predict">
         ${s.winPercent ? `<span class="predict-chip">Ev %${(s.winPercent.home || "-").replace("%", "")} · Berabere %${(s.winPercent.draw || "-").replace("%", "")} · Dep %${(s.winPercent.away || "-").replace("%", "")}</span>` : ""}
-        ${s.underOver ? `<span class="predict-chip">Alt/Üst: ${s.underOver}</span>` : ""}
-        ${s.predictedGoals && (s.predictedGoals.home || s.predictedGoals.away) ? `<span class="predict-chip">Beklenen gol: ${s.predictedGoals.home ?? "?"} - ${s.predictedGoals.away ?? "?"}</span>` : ""}
+        ${combinedGoalsChip(s.goalsAvg)}
       </div>
+      <p class="stats-disclaimer">* Toplam gol tahmini, iki takımın attığı gol ortalamalarının toplamıdır — kendi hesapladığımız kaba bir gösterge, resmi bahis oranı değildir.</p>
       <div class="stats-h2h">
         <div class="stats-col-title">Son karşılaşmalar</div>
         ${h2hRows}
@@ -1124,6 +1136,15 @@ document.querySelectorAll("#chart-metric-btns .filter-btn").forEach(btn => {
     btn.classList.add("active");
     chartMetric = btn.dataset.metric;
     renderCharts();
+  });
+});
+
+document.querySelectorAll(".matches-day-tabs .filter-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".matches-day-tabs .filter-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    matchesDay = btn.dataset.day;
+    subscribeMatches();
   });
 });
 
