@@ -2,9 +2,15 @@ name: Fetch Football Data
 
 on:
   schedule:
-    - cron: "0 6 * * *"   # 09:00 Türkiye saati (UTC+3)
-    - cron: "0 9 * * *"   # 12:00 Türkiye saati (UTC+3)
-  workflow_dispatch: {}    # Settings > Actions'tan elle de tetiklenebilir
+    - cron: "0 6 * * *"   # 09:00 Türkiye saati → BUGÜN
+    - cron: "0 9 * * *"   # 12:00 Türkiye saati → YARIN
+  workflow_dispatch:
+    inputs:
+      target_day:
+        description: "Hangi gün çekilsin?"
+        type: choice
+        options: [today, tomorrow]
+        default: today
 
 jobs:
   fetch:
@@ -27,4 +33,5 @@ jobs:
         env:
           API_FOOTBALL_KEY: ${{ secrets.API_FOOTBALL_KEY }}
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          TARGET_DAY: ${{ github.event.inputs.target_day || (github.event.schedule == '0 9 * * *' && 'tomorrow' || 'today') }}
         run: node fetch-football-data.js
