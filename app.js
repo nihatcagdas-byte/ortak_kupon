@@ -571,6 +571,7 @@ function renderCouponDetail(c) {
         <div class="slot-body">
           <div class="slot-player">${user}</div>
           <div class="slot-teams">${escapeHtml(m.teams)}</div>
+          ${m.day && m.time ? `<div class="slot-time">🗓 ${escapeHtml(m.day)} ${escapeHtml(m.time)}</div>` : ""}
           <div class="slot-prediction">${escapeHtml(m.prediction)}</div>
           <div class="slot-amount">${Number(m.amount || 0)}₺ yatırdı</div>
         </div>
@@ -773,6 +774,8 @@ function openMatchModal(targetUser, existingMatch, couponId) {
   activeCouponId = couponId || activeCouponId;
   modalTargetUser = targetUser;
   document.getElementById("input-teams").value = existingMatch ? existingMatch.teams : "";
+  document.getElementById("input-day").value = existingMatch ? (existingMatch.day || "") : "";
+  document.getElementById("input-time").value = existingMatch ? (existingMatch.time || "") : "";
   document.getElementById("input-prediction").value = existingMatch ? existingMatch.prediction : "";
   document.getElementById("input-odds").value = existingMatch ? existingMatch.odds : "";
   document.getElementById("input-amount").value = existingMatch ? existingMatch.amount : "";
@@ -791,12 +794,14 @@ function closeMatchModal() {
 
 async function submitMatch() {
   const teams = document.getElementById("input-teams").value.trim();
+  const day = document.getElementById("input-day").value;
+  const time = document.getElementById("input-time").value;
   const prediction = document.getElementById("input-prediction").value.trim();
   const odds = parseFloat(document.getElementById("input-odds").value);
   const amount = parseFloat(document.getElementById("input-amount").value);
   const errEl = document.getElementById("modal-error");
 
-  if (!teams || !prediction || !odds || !amount || amount <= 0) {
+  if (!teams || !day || !time || !prediction || !odds || !amount || amount <= 0) {
     errEl.textContent = "Tüm alanları doğru şekilde doldur.";
     errEl.classList.remove("hidden");
     return;
@@ -804,7 +809,7 @@ async function submitMatch() {
 
   await updateDoc(doc(db, "coupons", activeCouponId), {
     [`matches.${modalTargetUser}`]: {
-      teams, prediction, odds, amount,
+      teams, day, time, prediction, odds, amount,
       enteredAt: serverTimestamp()
     }
   });

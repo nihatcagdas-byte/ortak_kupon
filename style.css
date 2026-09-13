@@ -331,6 +331,7 @@ main.view{ padding:24px 28px 60px; max-width:900px; margin:0 auto; }
 }
 .slot-teams{ font-size:15.5px; font-weight:600; }
 .slot-prediction{ font-size:13px; color:var(--ink-soft); margin-top:2px; }
+.slot-time{ font-family:var(--font-mono); font-size:11px; color:var(--gold); margin-top:3px; }
 .slot-odds{
   font-family:var(--font-mono); font-weight:600; font-size:18px;
   color:var(--pitch); background:rgba(15,42,29,0.06);
@@ -753,6 +754,9 @@ main.view.view-stats{ max-width:1700px; }
 }
 .field-input:focus{ outline:none; border-color:var(--gold); }
 .field-mono{ font-family:var(--font-mono); }
+.field-row{ display:flex; gap:10px; }
+.field-row .field-input{ flex:1; min-width:0; }
+.field-select{ appearance:none; -webkit-appearance:none; cursor:pointer; }
 .modal-warning{ font-size:12.5px; color:var(--ink-soft); margin:16px 0 0; }
 
 /* ============================================================

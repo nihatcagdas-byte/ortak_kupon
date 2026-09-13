@@ -239,6 +239,21 @@
     <label class="field-label">Takımlar</label>
     <input id="input-teams" class="field-input" type="text" placeholder="Örn: Fenerbahçe - Trabzonspor" maxlength="60">
 
+    <label class="field-label">Zaman</label>
+    <div class="field-row">
+      <select id="input-day" class="field-input field-select">
+        <option value="">Gün seç</option>
+        <option value="Pazartesi">Pazartesi</option>
+        <option value="Salı">Salı</option>
+        <option value="Çarşamba">Çarşamba</option>
+        <option value="Perşembe">Perşembe</option>
+        <option value="Cuma">Cuma</option>
+        <option value="Cumartesi">Cumartesi</option>
+        <option value="Pazar">Pazar</option>
+      </select>
+      <input id="input-time" class="field-input field-mono" type="time" step="900">
+    </div>
+
     <label class="field-label">Tahmin</label>
     <input id="input-prediction" class="field-input" type="text" placeholder="Örn: MS1, Alt 2.5, Çifte Şans 1X" maxlength="40">
 
