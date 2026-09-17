@@ -2,22 +2,22 @@
    TOKENS — Sofascore ilhamlı: koyu lacivert + canlı mavi
    ============================================================ */
 :root{
-  --bg:           #0E1015;
-  --surface:      #171A21;
-  --surface-2:    #20242D;
-  --surface-3:    #2A2F3A;
-  --text:         #F5F6FA;
-  --text-dim:     rgba(245,246,250,0.56);
+  --bg:           #262C38;
+  --surface:      #313846;
+  --surface-2:    #3B4353;
+  --surface-3:    #4A5365;
+  --text:         #F7F8FC;
+  --text-dim:     rgba(247,248,252,0.66);
   --blue:         #18A0FB;
-  --blue-dim:     rgba(24,160,251,0.14);
+  --blue-dim:     rgba(24,160,251,0.18);
   --live:         #FF3B30;
-  --live-bg:      rgba(255,59,48,0.14);
-  --win:          #22C55E;
-  --win-bg:       rgba(34,197,94,0.14);
-  --lose:         #F5455C;
-  --lose-bg:      rgba(245,69,92,0.14);
-  --line:         rgba(245,246,250,0.09);
-  --line-soft:    rgba(245,246,250,0.05);
+  --live-bg:      rgba(255,59,48,0.16);
+  --win:          #2ED573;
+  --win-bg:       rgba(46,213,115,0.16);
+  --lose:         #FF5A72;
+  --lose-bg:      rgba(255,90,114,0.16);
+  --line:         rgba(247,248,252,0.12);
+  --line-soft:    rgba(247,248,252,0.07);
 
   --font-display: 'Plus Jakarta Sans', sans-serif;
   --font-body:    'Inter', sans-serif;
@@ -41,7 +41,7 @@ body{
 
 .stadium-glow{
   position:fixed; inset:0;
-  background:radial-gradient(ellipse 800px 420px at 50% -8%, rgba(24,160,251,0.10), transparent 60%);
+  background:radial-gradient(ellipse 800px 420px at 50% -8%, rgba(24,160,251,0.14), transparent 60%);
   pointer-events:none;
   z-index:0;
 }
@@ -189,7 +189,7 @@ body{
   display:flex; align-items:center; justify-content:space-between;
   padding:16px 28px;
   border-bottom:1px solid var(--line);
-  background:rgba(14,16,21,0.85);
+  background:rgba(38,44,56,0.88);
   backdrop-filter:blur(10px);
   position:sticky; top:0; z-index:20;
 }
@@ -732,7 +732,7 @@ main.view.view-stats{ max-width:1700px; }
    MODAL
    ============================================================ */
 .modal-overlay{
-  position:fixed; inset:0; background:rgba(4,5,8,0.75);
+  position:fixed; inset:0; background:rgba(15,18,24,0.72);
   display:flex; align-items:center; justify-content:center; padding:20px; z-index:50;
 }
 .modal-card{
