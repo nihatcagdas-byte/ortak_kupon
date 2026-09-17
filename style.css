@@ -106,7 +106,7 @@ body{
 
 .name-grid{
   display:grid;
-  grid-template-columns:1fr 1fr;
+  grid-template-columns:repeat(auto-fit, minmax(110px, 1fr));
   gap:10px;
 }
 .name-card{
@@ -784,7 +784,6 @@ main.view.view-stats{ max-width:1700px; }
   main.view{ padding:20px 16px 60px; }
   .back-link{ margin:18px 16px 0; }
   .brand-title{ font-size:32px; }
-  .name-grid{ grid-template-columns:1fr 1fr; }
   .match-slot{ flex-wrap:wrap; }
   .slot-odds{ margin-left:38px; }
 }

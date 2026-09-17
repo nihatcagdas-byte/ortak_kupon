@@ -16,12 +16,12 @@ import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.2/firebas
 import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyClENcWk3y4xYWHKc6KFKBES5cXF9BLPhc",
-  authDomain: "maclar-e8b25.firebaseapp.com",
-  projectId: "maclar-e8b25",
-  storageBucket: "maclar-e8b25.firebasestorage.app",
-  messagingSenderId: "889862054206",
-  appId: "1:889862054206:web:7847721c38b08ef8780c6f"
+  apiKey: "BURAYA_API_KEY",
+  authDomain: "BURAYA_PROJE.firebaseapp.com",
+  projectId: "BURAYA_PROJE_ID",
+  storageBucket: "BURAYA_PROJE.appspot.com",
+  messagingSenderId: "BURAYA_SENDER_ID",
+  appId: "BURAYA_APP_ID"
 };
 
 export const app = initializeApp(firebaseConfig);
@@ -35,5 +35,17 @@ export const authReady = signInAnonymously(auth).catch((err) => {
   console.error("Anonim giriş başarısız:", err);
 });
 
-// Sabit 4 oyuncu
-export const USERS = ["Nihat", "Mahir", "Cenk", "Ebuzer"];
+// ============================================================
+// KULLANICILAR
+// ============================================================
+// ALL_USERS: sistemde kayıtlı tüm kişiler (Firestore'daki veriler korunur).
+// INACTIVE_USERS: geçici olarak devre dışı bırakılanlar. Bu listedekiler:
+//   - giriş ekranında görünmez (giriş yapamaz)
+//   - yeni kuponlarda slotu açılmaz
+//   - istatistik, lider tablosu ve grafiklerde yer almaz
+// Firestore'daki geçmiş verileri SİLİNMEZ. Tekrar aktif etmek için
+// sadece ismi aşağıdaki INACTIVE_USERS listesinden çıkarmak yeterli.
+// ============================================================
+export const ALL_USERS = ["Nihat", "Mahir", "Cenk", "Ebuzer"];
+export const INACTIVE_USERS = ["Mahir"];
+export const USERS = ALL_USERS.filter(u => !INACTIVE_USERS.includes(u));

@@ -444,10 +444,10 @@ function couponProgress(c) {
 }
 function couponStatusInfo(c) {
   const filled = couponProgress(c);
-  if (filled < 4) return { key: "open", label: "Açık" };
+  if (filled < USERS.length) return { key: "open", label: "Açık" };
   if (!c.playedBy) return { key: "ready", label: "Hazır" };
   const resultsFilled = USERS.filter(u => c.results && c.results[u]).length;
-  if (resultsFilled < 4) return { key: "played", label: "Oynandı" };
+  if (resultsFilled < USERS.length) return { key: "played", label: "Oynandı" };
   const won = USERS.every(u => c.results[u] === "tuttu");
   return won ? { key: "won", label: "Tuttu" } : { key: "lost", label: "Tutmadı" };
 }
@@ -468,7 +468,7 @@ function renderCouponList() {
       <div class="coupon-row-left">
         <div>
           <div class="coupon-date">${c.displayName}</div>
-          <div class="coupon-progress">${filled}/4 maç girildi${c.playedBy ? " · Oynatan: " + c.playedBy : ""}</div>
+          <div class="coupon-progress">${filled}/${USERS.length} maç girildi${c.playedBy ? " · Oynatan: " + c.playedBy : ""}</div>
         </div>
       </div>
       <span class="status-pill status-${info.key}">${info.label}</span>
@@ -601,7 +601,7 @@ function renderCouponDetail(c) {
       </div>
       <div class="kupon-summary-item">
         <div class="kupon-summary-value">${totals.payout.toFixed(0)}₺</div>
-        <div class="kupon-summary-label">Olası Kazanç${totals.filled < 4 ? " (şimdilik)" : ""}</div>
+        <div class="kupon-summary-label">Olası Kazanç${totals.filled < USERS.length ? " (şimdilik)" : ""}</div>
       </div>
     `;
   } else {
@@ -622,7 +622,7 @@ function renderTicketFooter(c, info) {
   }
 
   if (info.key === "ready") {
-    footer.innerHTML = `<p class="footer-note">4 maç da girildi. Kupon parası nereden karşılanacak?</p>`;
+    footer.innerHTML = `<p class="footer-note">Tüm maçlar girildi. Kupon parası nereden karşılanacak?</p>`;
     const totals = couponTotals(c);
     const row = document.createElement("div");
     row.className = "fund-choice-row";
@@ -1168,6 +1168,12 @@ document.getElementById("submit-match").addEventListener("click", submitMatch);
    ============================================================ */
 async function boot() {
   await authReady;
+  // Pasif edilmiş bir kullanıcı daha önce giriş yapmış ve tarayıcısında
+  // oturumu kayıtlıysa, otomatik olarak çıkış yaptır.
+  if (currentUser && !USERS.includes(currentUser)) {
+    currentUser = null;
+    localStorage.removeItem("kupon_user");
+  }
   renderNameGrid();
   renderRules();
   if (currentUser) {
