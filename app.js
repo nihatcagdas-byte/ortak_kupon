@@ -30,7 +30,7 @@ const METRIC_LABELS = {
   amount: "Toplam Yatırım (₺)", oddsproduct: "Oran Çarpımı"
 };
 
-const pinState = { mode: "login", stage: "first", first: "", current: "", targetName: null };
+const pinState = { mode: "login", stage: "first", first: "", current: "", targetName: null, busy: false };
 
 /* ============================================================
    HELPERS
@@ -93,58 +93,114 @@ async function startPinFlow(name) {
   pinState.first = "";
   pinState.current = "";
   pinState.stage = "first";
+  pinState.busy = false;
 
   document.getElementById("name-select").classList.add("hidden");
   document.getElementById("pin-pad").classList.remove("hidden");
   document.getElementById("pin-name").textContent = name;
   document.getElementById("pin-error").classList.add("hidden");
+  document.getElementById("pin-sub").textContent = "Kontrol ediliyor…";
+  renderPinDots();
 
-  const userRef = doc(db, "users", name);
-  const snap = await getDoc(userRef);
-  if (snap.exists() && snap.data().pinSet) {
+  try {
+    const snap = await getDoc(doc(db, "users", name));
+    if (snap.exists() && snap.data().pinSet) {
+      pinState.mode = "login";
+      document.getElementById("pin-sub").textContent = "4 haneli şifreni gir";
+    } else {
+      pinState.mode = "create";
+      document.getElementById("pin-sub").textContent = "İlk giriş: 4 haneli bir şifre oluştur";
+    }
+  } catch (err) {
+    console.error("Kullanıcı bilgisi okunamadı:", err);
     pinState.mode = "login";
     document.getElementById("pin-sub").textContent = "4 haneli şifreni gir";
-  } else {
-    pinState.mode = "create";
-    document.getElementById("pin-sub").textContent = "İlk giriş: 4 haneli bir şifre oluştur";
+    showPinError("Bağlantı sorunu olabilir. Şifreni girip 'Giriş Yap'a bas.");
   }
   renderPinDots();
+}
+
+function showPinError(msg) {
+  const errEl = document.getElementById("pin-error");
+  errEl.textContent = msg;
+  errEl.classList.remove("hidden");
+}
+
+function setPinBusy(busy) {
+  pinState.busy = busy;
+  const btn = document.getElementById("pin-submit");
+  if (!btn) return;
+  btn.disabled = busy;
+  btn.textContent = busy ? "Kontrol ediliyor…" : (pinState.mode === "create" && pinState.stage === "confirm" ? "Onayla" : (pinState.mode === "create" ? "Devam Et" : "Giriş Yap"));
 }
 
 function renderPinDots() {
   const dots = document.querySelectorAll(".pin-dot");
   dots.forEach((d, i) => d.classList.toggle("filled", i < pinState.current.length));
+  const btn = document.getElementById("pin-submit");
+  if (btn && !pinState.busy) {
+    btn.disabled = pinState.current.length !== 4;
+    btn.textContent = pinState.mode === "create"
+      ? (pinState.stage === "confirm" ? "Onayla" : "Devam Et")
+      : "Giriş Yap";
+  }
 }
 
-async function handlePinDigit(digit) {
+function handlePinDigit(digit) {
+  if (pinState.busy) return;
   if (pinState.current.length >= 4) return;
   pinState.current += digit;
   renderPinDots();
   if (pinState.current.length === 4) {
-    setTimeout(processPinComplete, 180);
+    setTimeout(() => { if (!pinState.busy) processPinComplete(); }, 180);
   }
 }
 
 function handlePinDelete() {
+  if (pinState.busy) return;
   pinState.current = pinState.current.slice(0, -1);
+  document.getElementById("pin-error").classList.add("hidden");
   renderPinDots();
 }
 
 async function processPinComplete() {
+  if (pinState.busy) return;
+  if (pinState.current.length !== 4) {
+    showPinError("4 hane girmelisin.");
+    return;
+  }
   const errEl = document.getElementById("pin-error");
   errEl.classList.add("hidden");
 
   if (pinState.mode === "login") {
-    const snap = await getDoc(doc(db, "users", pinState.targetName));
-    const realPin = snap.exists() ? snap.data().pin : null;
-    if (pinState.current === realPin) {
-      loginAs(pinState.targetName);
-    } else {
-      errEl.textContent = "Şifre yanlış, tekrar dene.";
-      errEl.classList.remove("hidden");
+    setPinBusy(true);
+    try {
+      const snap = await getDoc(doc(db, "users", pinState.targetName));
+      const realPin = snap.exists() ? snap.data().pin : null;
+      if (realPin === null) {
+        // Kayıt yokmuş — şifre oluşturma akışına geç
+        pinState.mode = "create";
+        pinState.stage = "first";
+        pinState.first = "";
+        pinState.current = "";
+        document.getElementById("pin-sub").textContent = "İlk giriş: 4 haneli bir şifre oluştur";
+        setPinBusy(false);
+        renderPinDots();
+        return;
+      }
+      if (pinState.current === realPin) {
+        loginAs(pinState.targetName);
+        return;
+      }
+      showPinError("Şifre yanlış, tekrar dene.");
       pinState.current = "";
-      renderPinDots();
+    } catch (err) {
+      console.error("Giriş kontrolü başarısız:", err);
+      showPinError("Bağlanılamadı: " + (err.code || err.message || "bilinmeyen hata"));
+      pinState.current = "";
     }
+    setPinBusy(false);
+    renderPinDots();
     return;
   }
 
@@ -160,17 +216,24 @@ async function processPinComplete() {
 
   // stage === confirm
   if (pinState.current === pinState.first) {
-    await setDoc(doc(db, "users", pinState.targetName), { pin: pinState.first, pinSet: true });
-    loginAs(pinState.targetName);
+    setPinBusy(true);
+    try {
+      await setDoc(doc(db, "users", pinState.targetName), { pin: pinState.first, pinSet: true });
+      loginAs(pinState.targetName);
+      return;
+    } catch (err) {
+      console.error("Şifre kaydedilemedi:", err);
+      showPinError("Kaydedilemedi: " + (err.code || err.message || "bilinmeyen hata"));
+      setPinBusy(false);
+    }
   } else {
-    errEl.textContent = "Şifreler eşleşmedi, baştan dene.";
-    errEl.classList.remove("hidden");
+    showPinError("Şifreler eşleşmedi, baştan dene.");
     pinState.stage = "first";
     pinState.first = "";
     pinState.current = "";
     document.getElementById("pin-sub").textContent = "4 haneli bir şifre oluştur";
-    renderPinDots();
   }
+  renderPinDots();
 }
 
 function loginAs(name) {
@@ -1109,13 +1172,33 @@ function renderRules() {
 document.getElementById("back-to-names").addEventListener("click", () => {
   document.getElementById("pin-pad").classList.add("hidden");
   document.getElementById("name-select").classList.remove("hidden");
-  pinState.current = ""; pinState.first = "";
+  document.getElementById("pin-error").classList.add("hidden");
+  pinState.current = ""; pinState.first = ""; pinState.stage = "first"; pinState.busy = false;
+  renderPinDots();
 });
 
 document.querySelectorAll(".key[data-k]").forEach(k => {
   k.addEventListener("click", () => handlePinDigit(k.dataset.k));
 });
 document.getElementById("pin-del").addEventListener("click", handlePinDelete);
+document.getElementById("pin-submit").addEventListener("click", processPinComplete);
+
+// Klavye desteği: rakam tuşları, Backspace ve Enter
+document.addEventListener("keydown", (e) => {
+  const padVisible = !document.getElementById("pin-pad").classList.contains("hidden");
+  const loginVisible = document.getElementById("view-login").classList.contains("active");
+  if (!padVisible || !loginVisible) return;
+  if (e.key >= "0" && e.key <= "9") {
+    handlePinDigit(e.key);
+    e.preventDefault();
+  } else if (e.key === "Backspace") {
+    handlePinDelete();
+    e.preventDefault();
+  } else if (e.key === "Enter") {
+    processPinComplete();
+    e.preventDefault();
+  }
+});
 
 document.getElementById("logout-btn").addEventListener("click", logout);
 

@@ -181,6 +181,8 @@ body{
 .key-ghost{ visibility:hidden; cursor:default; }
 .key-del{ font-size:15px; color:var(--blue); }
 
+#pin-submit{ margin-top:20px; max-width:272px; }
+
 /* ============================================================
    APP SHELL / TOPBAR
    ============================================================ */
