@@ -488,9 +488,17 @@ function subscribeCouponList() {
   });
 }
 
+// Bir kuponun "kadrosu" — o kupon oluşturulduğunda kimin slotu açıldıysa
+// onlar. Aktif kullanıcı listesi (USERS) sonradan değişse bile (örn. biri
+// pasif edilse) geçmiş kuponların gerçek katılımcı sayısı ve sonucu bundan
+// etkilenmesin diye, USERS yerine HER ZAMAN kuponun kendi verisini kullanıyoruz.
+function couponRoster(c) {
+  return c.matches ? Object.keys(c.matches) : USERS;
+}
+
 function couponTotals(c) {
   let totalStake = 0, totalOdds = 1, filled = 0;
-  USERS.forEach(u => {
+  couponRoster(c).forEach(u => {
     const m = c.matches ? c.matches[u] : null;
     if (m) {
       totalStake += Number(m.amount || 0);
@@ -503,15 +511,17 @@ function couponTotals(c) {
 }
 
 function couponProgress(c) {
-  return USERS.filter(u => c.matches && c.matches[u]).length;
+  const roster = couponRoster(c);
+  return roster.filter(u => c.matches && c.matches[u]).length;
 }
 function couponStatusInfo(c) {
+  const roster = couponRoster(c);
   const filled = couponProgress(c);
-  if (filled < USERS.length) return { key: "open", label: "Açık" };
+  if (filled < roster.length) return { key: "open", label: "Açık" };
   if (!c.playedBy) return { key: "ready", label: "Hazır" };
-  const resultsFilled = USERS.filter(u => c.results && c.results[u]).length;
-  if (resultsFilled < USERS.length) return { key: "played", label: "Oynandı" };
-  const won = USERS.every(u => c.results[u] === "tuttu");
+  const resultsFilled = roster.filter(u => c.results && c.results[u]).length;
+  if (resultsFilled < roster.length) return { key: "played", label: "Oynandı" };
+  const won = roster.every(u => c.results[u] === "tuttu");
   return won ? { key: "won", label: "Tuttu" } : { key: "lost", label: "Tutmadı" };
 }
 
@@ -531,7 +541,7 @@ function renderCouponList() {
       <div class="coupon-row-left">
         <div>
           <div class="coupon-date">${c.displayName}</div>
-          <div class="coupon-progress">${filled}/${USERS.length} maç girildi${c.playedBy ? " · Oynatan: " + c.playedBy : ""}</div>
+          <div class="coupon-progress">${filled}/${couponRoster(c).length} maç girildi${c.playedBy ? " · Oynatan: " + c.playedBy : ""}</div>
         </div>
       </div>
       <span class="status-pill status-${info.key}">${info.label}</span>
@@ -602,7 +612,7 @@ function renderCouponDetail(c) {
 
   const slotsEl = document.getElementById("match-slots");
   slotsEl.innerHTML = "";
-  USERS.forEach((user, i) => {
+  couponRoster(c).forEach((user, i) => {
     const m = c.matches ? c.matches[user] : null;
     const result = c.results ? c.results[user] : null;
     const isSelf = user === currentUser;
@@ -664,7 +674,7 @@ function renderCouponDetail(c) {
       </div>
       <div class="kupon-summary-item">
         <div class="kupon-summary-value">${totals.payout.toFixed(0)}₺</div>
-        <div class="kupon-summary-label">Olası Kazanç${totals.filled < USERS.length ? " (şimdilik)" : ""}</div>
+        <div class="kupon-summary-label">Olası Kazanç${totals.filled < couponRoster(c).length ? " (şimdilik)" : ""}</div>
       </div>
     `;
   } else {
@@ -749,7 +759,7 @@ function renderTicketFooter(c, info) {
 
 function appendResultRows(footer, c) {
   const wrap = document.createElement("div");
-  USERS.forEach(user => {
+  couponRoster(c).forEach(user => {
     const m = c.matches[user];
     const result = c.results ? c.results[user] : null;
     const row = document.createElement("div");
