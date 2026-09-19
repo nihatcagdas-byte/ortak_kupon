@@ -282,6 +282,7 @@ function subscribePool() {
     }
     poolBalance = Number(snap.data().balance || 0);
     renderPoolCard();
+    renderDebtAndShare();
     // Kupon detayındaysak, havuz bakiyesine bağlı butonları (etiketler vb.) tazele
     const cc = couponsCache.find(x => x.id === activeCouponId);
     if (cc && document.getElementById("view-coupon").classList.contains("active")) {
@@ -978,6 +979,78 @@ function renderLeaderboards() {
 }
 
 /* ============================================================
+   KASAYA BORÇ + KASADAKİ PAY
+   ============================================================ */
+// Havuzdan (kasadan) oynanıp KAYBEDİLEN her kuponda, kaybeden kişi(ler)
+// kazananların yatırdığı tutarı kasaya geri ödemekle yükümlü (Kural 4).
+// Bu borç kasadan otomatik düşülmüyor — burada sadece ne kadar borçlu
+// olduğu hesaplanıp gösteriliyor.
+function computeDebts() {
+  const debtByUser = {};
+  couponsCache.forEach(c => {
+    if (c.fundingSource !== "pool") return;
+    if (couponStatusInfo(c).key !== "lost") return;
+    const roster = couponRoster(c);
+    const winners = roster.filter(u => c.results && c.results[u] === "tuttu");
+    const losers = roster.filter(u => c.results && c.results[u] === "tutmadi");
+    if (losers.length === 0 || winners.length === 0) return;
+    const winnersStakeTotal = winners.reduce((sum, u) => sum + Number((c.matches[u] && c.matches[u].amount) || 0), 0);
+    const perLoserShare = winnersStakeTotal / losers.length;
+    losers.forEach(u => {
+      debtByUser[u] = (debtByUser[u] || 0) + perLoserShare;
+    });
+  });
+  return debtByUser;
+}
+
+function renderDebtAndShare() {
+  const debtList = document.getElementById("debt-list");
+  const shareList = document.getElementById("share-list");
+  if (!debtList || !shareList) return;
+
+  const debtByUser = computeDebts();
+  const N = USERS.length;
+  const totalDebt = USERS.reduce((sum, u) => sum + (debtByUser[u] || 0), 0);
+  const baseShare = N > 0 ? poolBalance / N : 0;
+
+  debtList.innerHTML = "";
+  USERS.forEach(u => {
+    const debt = debtByUser[u] || 0;
+    const cls = debt > 0 ? "is-debt" : "is-zero";
+    const row = document.createElement("div");
+    row.className = "simple-row";
+    row.innerHTML = `
+      <span class="simple-row-name">${u}</span>
+      <span class="simple-row-value ${cls}">${debt > 0 ? "-" : ""}${debt.toFixed(0)}₺</span>
+    `;
+    debtList.appendChild(row);
+  });
+
+  shareList.innerHTML = "";
+  USERS.forEach(u => {
+    const debt = debtByUser[u] || 0;
+    const othersDebtSum = totalDebt - debt;
+    const share = N > 1
+      ? baseShare - debt + (othersDebtSum / (N - 1))
+      : baseShare - debt;
+    const row = document.createElement("div");
+    row.className = "simple-row";
+    row.innerHTML = `
+      <span class="simple-row-name">${u}</span>
+      <span class="simple-row-value is-share">${share.toFixed(0)}₺</span>
+    `;
+    shareList.appendChild(row);
+  });
+
+  if (totalDebt > 0) {
+    const note = document.createElement("p");
+    note.className = "debt-note";
+    note.textContent = "Borçlu kişinin payından borcu düşülüp, kalan diğer kişilere eşit bölüştürülmüştür.";
+    shareList.appendChild(note);
+  }
+}
+
+/* ============================================================
    CHARTS
    ============================================================ */
 function getPeriodRange(period) {
@@ -1104,6 +1177,7 @@ function renderCharts() {
    ============================================================ */
 function renderStats() {
   renderLeaderboards();
+  renderDebtAndShare();
   renderCharts();
 
   const finished = couponsCache.filter(c => couponStatusInfo(c).key === "won" || couponStatusInfo(c).key === "lost");

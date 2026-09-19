@@ -586,6 +586,20 @@ main.view.view-stats{ max-width:1700px; }
 }
 .lb-chip.lb-chip-hit{ background:var(--win-bg); color:var(--win); }
 
+.leaderboard-col + .leaderboard-col{ margin-top:16px; }
+.simple-list{ display:flex; flex-direction:column; gap:6px; }
+.simple-row{
+  display:flex; align-items:center; justify-content:space-between;
+  background:var(--surface-2); border:1px solid var(--line-soft);
+  border-radius:10px; padding:10px 12px;
+}
+.simple-row-name{ font-family:var(--font-display); font-weight:700; font-size:13.5px; letter-spacing:-0.1px; }
+.simple-row-value{ font-family:var(--font-mono); font-weight:700; font-size:13.5px; }
+.simple-row-value.is-debt{ color:var(--lose); }
+.simple-row-value.is-zero{ color:var(--text-dim); }
+.simple-row-value.is-share{ color:var(--blue); }
+.debt-note{ font-size:11px; color:var(--text-dim); margin-top:8px; line-height:1.4; }
+
 @media (max-width:980px){
   .stats-layout{ grid-template-columns:1fr; }
 }
