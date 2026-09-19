@@ -27,7 +27,7 @@ let lineChartInstance = null;
 const USER_COLORS = { Nihat: "#D9A62E", Mahir: "#3B6EA5", Cenk: "#B84A3E", Ebuzer: "#3F8F5C" };
 const METRIC_LABELS = {
   entered: "Girilen Maç", won: "Kazanılan Maç", hitrate: "İsabet Oranı (%)",
-  amount: "Toplam Yatırım (₺)", oddsproduct: "Oran Çarpımı"
+  amount: "Toplam Yatırım (₺)", oddsproduct: "Oran Toplamı"
 };
 
 const pinState = { mode: "login", stage: "first", first: "", current: "", targetName: null, busy: false };
@@ -896,7 +896,7 @@ async function submitMatch() {
    ============================================================ */
 function computeUserStatsInRange(rangeStart, rangeEnd) {
   const stats = {};
-  USERS.forEach(u => stats[u] = { user: u, entered: 0, won: 0, amount: 0, wonOddsProduct: 1 });
+  USERS.forEach(u => stats[u] = { user: u, entered: 0, won: 0, amount: 0, wonOddsSum: 0 });
 
   couponsCache.forEach(c => {
     if (!c.dateKey) return;
@@ -908,7 +908,7 @@ function computeUserStatsInRange(rangeStart, rangeEnd) {
       const r = c.results ? c.results[u] : null;
       if (r === "tuttu") {
         stats[u].won++;
-        if (m) stats[u].wonOddsProduct *= Number(m.odds || 1);
+        if (m) stats[u].wonOddsSum += Number(m.odds || 0);
       }
     });
   });
@@ -922,7 +922,7 @@ function metricValue(stat, metric) {
     case "won": return stat.won;
     case "hitrate": return stat.entered ? Math.round((stat.won / stat.entered) * 100) : 0;
     case "amount": return stat.amount;
-    case "oddsproduct": return stat.won > 0 ? Number(stat.wonOddsProduct.toFixed(2)) : 0;
+    case "oddsproduct": return stat.won > 0 ? Number(stat.wonOddsSum.toFixed(2)) : 0;
     default: return 0;
   }
 }
@@ -931,7 +931,7 @@ function computeLeaderboard(rangeStart, rangeEnd) {
   const stats = computeUserStatsInRange(rangeStart, rangeEnd);
   return Object.values(stats).sort((a, b) => {
     if (b.won !== a.won) return b.won - a.won;
-    return b.wonOddsProduct - a.wonOddsProduct;
+    return b.wonOddsSum - a.wonOddsSum;
   });
 }
 
@@ -946,7 +946,7 @@ function renderLeaderboardList(elId, rows) {
     const rankClass = RANK_CLASSES[i] || "lb-plain";
     const medal = MEDALS[i] || String(i + 1);
     const winRate = r.entered ? Math.round((r.won / r.entered) * 100) : null;
-    const oddsLabel = r.won > 0 ? r.wonOddsProduct.toFixed(2) : "—";
+    const oddsLabel = r.won > 0 ? r.wonOddsSum.toFixed(2) : "—";
     const row = document.createElement("div");
     row.className = "lb-row";
     row.innerHTML = `
