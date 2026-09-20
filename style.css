@@ -599,6 +599,11 @@ main.view.view-stats{ max-width:1700px; }
 .simple-row-value.is-zero{ color:var(--text-dim); }
 .simple-row-value.is-share{ color:var(--blue); }
 .debt-note{ font-size:11px; color:var(--text-dim); margin-top:8px; line-height:1.4; }
+.simple-row-total{
+  background:var(--blue-dim); border-color:rgba(24,120,242,0.25);
+  margin-top:4px;
+}
+.simple-row-total .simple-row-name{ color:var(--blue); }
 
 @media (max-width:980px){
   .stats-layout{ grid-template-columns:1fr; }

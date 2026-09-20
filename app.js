@@ -1042,6 +1042,14 @@ function renderDebtAndShare() {
     shareList.appendChild(row);
   });
 
+  const totalRow = document.createElement("div");
+  totalRow.className = "simple-row simple-row-total";
+  totalRow.innerHTML = `
+    <span class="simple-row-name">Toplam Kasa</span>
+    <span class="simple-row-value is-share">${poolBalance.toFixed(0)}₺</span>
+  `;
+  shareList.appendChild(totalRow);
+
   if (totalDebt > 0) {
     const note = document.createElement("p");
     note.className = "debt-note";
