@@ -258,7 +258,7 @@ main.view{ padding:28px 28px 60px; max-width:900px; margin:0 auto; }
   border:1px solid var(--line);
   border-radius:var(--radius);
   padding:16px 18px;
-  display:flex; align-items:center; justify-content:space-between;
+  display:grid; grid-template-columns:1fr auto 104px; align-items:center; gap:16px;
   cursor:pointer;
   box-shadow:var(--shadow-card);
   transition:box-shadow .12s ease, border-color .12s ease, transform .1s ease;
@@ -267,13 +267,14 @@ main.view{ padding:28px 28px 60px; max-width:900px; margin:0 auto; }
 .coupon-row-left{ display:flex; align-items:center; gap:14px; }
 .coupon-date{ font-family:var(--font-display); font-weight:700; font-size:16px; letter-spacing:-0.1px; }
 .coupon-progress{ font-family:var(--font-mono); font-size:12px; color:var(--text-dim); }
-.coupon-summary-inline{ display:flex; flex-wrap:wrap; gap:6px; justify-content:flex-end; flex:1; margin:0 16px; }
+.coupon-summary-inline{ display:flex; flex-wrap:wrap; gap:6px; justify-content:flex-end; }
 .coupon-summary-chip{
   font-family:var(--font-mono); font-size:11px; font-weight:600;
   background:var(--surface-2); color:var(--text-dim);
   border-radius:20px; padding:4px 10px; white-space:nowrap;
 }
-.coupon-summary-chip-win{ background:var(--win-bg); color:var(--win); }
+.coupon-summary-chip-win{ background:var(--blue-dim); color:var(--blue); }
+.coupon-row .status-pill{ justify-self:center; }
 .empty-note{
   color:var(--text-dim); font-size:14px; text-align:center;
   padding:40px 0; border:1px dashed var(--line); border-radius:var(--radius);
@@ -831,6 +832,7 @@ main.view.view-stats{ max-width:1700px; }
   .brand-title{ font-size:32px; }
   .match-slot{ flex-wrap:wrap; }
   .slot-odds{ margin-left:38px; }
-  .coupon-row{ flex-wrap:wrap; row-gap:8px; }
-  .coupon-summary-inline{ justify-content:flex-start; margin:0; flex-basis:100%; order:3; }
+  .coupon-row{ grid-template-columns:1fr auto; row-gap:8px; }
+  .coupon-row .status-pill{ justify-self:end; }
+  .coupon-summary-inline{ justify-content:flex-start; grid-column:1 / -1; }
 }
