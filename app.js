@@ -536,6 +536,7 @@ function renderCouponList() {
   couponsCache.forEach(c => {
     const info = couponStatusInfo(c);
     const filled = couponProgress(c);
+    const totals = couponTotals(c);
     const row = document.createElement("div");
     row.className = "coupon-row";
     row.innerHTML = `
@@ -545,6 +546,12 @@ function renderCouponList() {
           <div class="coupon-progress">${filled}/${couponRoster(c).length} maç girildi${c.playedBy ? " · Oynatan: " + c.playedBy : ""}</div>
         </div>
       </div>
+      ${totals.filled > 0 ? `
+        <div class="coupon-summary-inline">
+          <span class="coupon-summary-chip">${totals.totalStake}₺ yatırıldı</span>
+          <span class="coupon-summary-chip coupon-summary-chip-win">Olası kazanç: ${totals.payout.toFixed(0)}₺</span>
+        </div>
+      ` : ""}
       <span class="status-pill status-${info.key}">${info.label}</span>
     `;
     row.addEventListener("click", () => openCoupon(c.id));
