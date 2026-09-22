@@ -47,7 +47,13 @@ const LEAGUES = [
   { id: 1, name: "Dünya Kupası" },
   { id: 4, name: "Avrupa Şampiyonası (Euro)" },
   { id: 9, name: "Copa America" },
-  { id: 5, name: "Uluslar Ligi" }
+  { id: 5, name: "Uluslar Ligi" },
+  { id: 206, name: "Türkiye Kupası" },
+  { id: 45, name: "FA Cup" },
+  { id: 143, name: "Copa del Rey" },
+  { id: 81, name: "DFB-Pokal" },
+  { id: 137, name: "Coppa Italia" },
+  { id: 66, name: "Coupe de France" }
 ];
 
 const BOOKMAKER_ID = 8; // Bet365 — sadece referans amaçlı, resmi İddaa oranı değildir
