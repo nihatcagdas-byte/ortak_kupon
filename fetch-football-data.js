@@ -134,19 +134,33 @@ async function main() {
         // Not: under_over / predicted goals alanları API'de işaret (+/-) anlamı
         // net dokümante edilmediği için kasıtlı olarak KULLANMIYORUZ — yanlış
         // yorumlanıp "alt" yerine "üst" gösterme riskini almıyoruz. Sadece
-        // net/kesin olan gol ortalaması + kazanma yüzdesi + H2H veriliyor.
+        // net/kesin olan gol ortalaması + kazanma yüzdesi + H2H + karşılaştırma veriliyor.
         advice: (p.predictions && p.predictions.advice) || null,
         winPercent: (p.predictions && p.predictions.percent) || null, // {home, draw, away}
         form: {
           home: (homeTeam && homeTeam.league && homeTeam.league.form) || null,
           away: (awayTeam && awayTeam.league && awayTeam.league.form) || null
         },
+        // Ev sahibinin İÇ SAHA ortalaması, deplasmanın DEPLASMAN ortalaması —
+        // genel ortalamadan daha isabetli, çünkü bu maçtaki gerçek konumlarını yansıtıyor.
+        // Veri yoksa (bazı liglerde split kırılım eksik olabilir) genel ortalamaya düşer.
         goalsAvg: {
-          homeFor: homeTeam?.league?.goals?.for?.average?.total ?? null,
-          homeAgainst: homeTeam?.league?.goals?.against?.average?.total ?? null,
-          awayFor: awayTeam?.league?.goals?.for?.average?.total ?? null,
-          awayAgainst: awayTeam?.league?.goals?.against?.average?.total ?? null
+          homeFor: homeTeam?.league?.goals?.for?.average?.home ?? homeTeam?.league?.goals?.for?.average?.total ?? null,
+          homeAgainst: homeTeam?.league?.goals?.against?.average?.home ?? homeTeam?.league?.goals?.against?.average?.total ?? null,
+          awayFor: awayTeam?.league?.goals?.for?.average?.away ?? awayTeam?.league?.goals?.for?.average?.total ?? null,
+          awayAgainst: awayTeam?.league?.goals?.against?.average?.away ?? awayTeam?.league?.goals?.against?.average?.total ?? null
         },
+        // API-Football'ın kendi karşılaştırma modeli — hücum/savunma gücü, form,
+        // gol verimliliği ve poisson dağılımı bazında iki takımı yüzdesel kıyaslıyor.
+        // Bahis oranı DEĞİL, API'nin istatistiksel modeli (6 farklı algoritma).
+        comparison: p.comparison ? {
+          form: p.comparison.form || null,
+          att: p.comparison.att || null,
+          def: p.comparison.def || null,
+          poisson: p.comparison.poisson_distribution || null,
+          goals: p.comparison.goals || null,
+          total: p.comparison.total || null
+        } : null,
         h2h: (p.h2h || []).slice(0, 5).map(h => ({
           date: h.fixture.date,
           home: h.teams.home.name,

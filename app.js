@@ -430,6 +430,36 @@ function combinedGoalsChip(goalsAvg) {
   return `<span class="predict-chip">Olası toplam gol*: ${total}</span>`;
 }
 
+function tip(text) {
+  return `<span class="stat-info" data-tooltip="${text}">ⓘ</span>`;
+}
+
+const COMPARE_LABELS = {
+  form: ["Form", "Son maçlardaki genel performansa göre karşılaştırma."],
+  att: ["Hücum Gücü", "İki takımın hücum gücünün yüzdesel karşılaştırması (attığı gol, isabetli şut gibi verilere dayanır)."],
+  def: ["Savunma Gücü", "İki takımın savunma gücünün yüzdesel karşılaştırması (yediği gol, önlenen şut gibi verilere dayanır)."],
+  poisson: ["Poisson Dağılımı", "İstatistiksel gol dağılım modeline göre kazanma ihtimali karşılaştırması."],
+  goals: ["Gol Verimi", "Attılan/yenilen gol verimliliğine göre karşılaştırma."],
+  total: ["Genel", "Form, hücum, savunma, gol ve geçmiş karşılaşmaların ağırlıklı ortalamasına göre genel karşılaştırma."]
+};
+
+function compareBar(key, pair) {
+  if (!pair || (!pair.home && !pair.away)) return "";
+  const [label, tooltip] = COMPARE_LABELS[key];
+  const home = parseFloat(pair.home) || 0;
+  const away = parseFloat(pair.away) || 0;
+  return `
+    <div class="compare-row">
+      <div class="compare-label">${label}${tip(tooltip)}</div>
+      <div class="compare-bar">
+        <span class="compare-seg compare-seg-home" style="width:${home}%"></span>
+        <span class="compare-seg compare-seg-away" style="width:${away}%"></span>
+      </div>
+      <div class="compare-values"><span>${pair.home || "-"}</span><span>${pair.away || "-"}</span></div>
+    </div>
+  `;
+}
+
 function buildStatsPanel(m) {
   const s = m.stats;
   const h2hRows = (s.h2h || []).map(h => {
@@ -440,24 +470,34 @@ function buildStatsPanel(m) {
     </div>`;
   }).join("") || `<p class="stats-empty">Geçmiş karşılaşma verisi yok.</p>`;
 
+  const compareRows = s.comparison
+    ? ["att", "def", "form", "goals", "poisson", "total"].map(k => compareBar(k, s.comparison[k])).join("")
+    : "";
+
   return `
     <div id="stats-${m.fixtureId}" class="match-detail hidden">
       <div class="stats-grid">
         <div class="stats-col">
           <div class="stats-col-title">${escapeHtml(m.home)}</div>
-          <div class="stats-line"><span>Form (son 5)</span><span class="form-chips">${formChips(s.form.home)}</span></div>
-          <div class="stats-line"><span>Attığı gol ort.</span><span>${s.goalsAvg.homeFor ?? "—"}</span></div>
-          <div class="stats-line"><span>Yediği gol ort.</span><span>${s.goalsAvg.homeAgainst ?? "—"}</span></div>
+          <div class="stats-line"><span>Form (son 5)${tip("W = Galibiyet, D = Beraberlik, L = Mağlubiyet")}</span><span class="form-chips">${formChips(s.form.home)}</span></div>
+          <div class="stats-line"><span>Attığı gol ort.${tip("Sadece iç sahadaki maçlarına göre ortalama.")}</span><span>${s.goalsAvg.homeFor ?? "—"}</span></div>
+          <div class="stats-line"><span>Yediği gol ort.${tip("Sadece iç sahadaki maçlarına göre ortalama.")}</span><span>${s.goalsAvg.homeAgainst ?? "—"}</span></div>
         </div>
         <div class="stats-col">
           <div class="stats-col-title">${escapeHtml(m.away)}</div>
-          <div class="stats-line"><span>Form (son 5)</span><span class="form-chips">${formChips(s.form.away)}</span></div>
-          <div class="stats-line"><span>Attığı gol ort.</span><span>${s.goalsAvg.awayFor ?? "—"}</span></div>
-          <div class="stats-line"><span>Yediği gol ort.</span><span>${s.goalsAvg.awayAgainst ?? "—"}</span></div>
+          <div class="stats-line"><span>Form (son 5)${tip("W = Galibiyet, D = Beraberlik, L = Mağlubiyet")}</span><span class="form-chips">${formChips(s.form.away)}</span></div>
+          <div class="stats-line"><span>Attığı gol ort.${tip("Sadece deplasmandaki maçlarına göre ortalama.")}</span><span>${s.goalsAvg.awayFor ?? "—"}</span></div>
+          <div class="stats-line"><span>Yediği gol ort.${tip("Sadece deplasmandaki maçlarına göre ortalama.")}</span><span>${s.goalsAvg.awayAgainst ?? "—"}</span></div>
         </div>
       </div>
+
+      ${compareRows ? `
+        <div class="stats-col-title compare-title">Karşılaştırma${tip("API-Football'ın kendi istatistiksel modeli (form, hücum, savunma, gol, geçmiş maçlar). Bahis oranı değildir.")}</div>
+        <div class="compare-block">${compareRows}</div>
+      ` : ""}
+
       <div class="stats-predict">
-        ${s.winPercent ? `<span class="predict-chip">Ev %${(s.winPercent.home || "-").replace("%", "")} · Berabere %${(s.winPercent.draw || "-").replace("%", "")} · Dep %${(s.winPercent.away || "-").replace("%", "")}</span>` : ""}
+        ${s.winPercent ? `<span class="predict-chip">Ev %${(s.winPercent.home || "-").replace("%", "")} · Berabere %${(s.winPercent.draw || "-").replace("%", "")} · Dep %${(s.winPercent.away || "-").replace("%", "")}${tip("API-Football'ın istatistiksel modeline göre maç sonucu olasılığı. Bahis oranı değildir.")}</span>` : ""}
         ${combinedGoalsChip(s.goalsAvg)}
       </div>
       <p class="stats-disclaimer">* Toplam gol tahmini, iki takımın attığı gol ortalamalarının toplamıdır — kendi hesapladığımız kaba bir gösterge, resmi bahis oranı değildir.</p>
