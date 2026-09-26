@@ -16,7 +16,7 @@ import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.2/firebas
 import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyClENcWk3y4xYWHKc6KFKBES5cXF9BLPhc",
+apiKey: "AIzaSyClENcWk3y4xYWHKc6KFKBES5cXF9BLPhc",
   authDomain: "maclar-e8b25.firebaseapp.com",
   projectId: "maclar-e8b25",
   storageBucket: "maclar-e8b25.firebasestorage.app",

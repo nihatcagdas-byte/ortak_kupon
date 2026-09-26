@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kupon | Nihat · Mahir · Cenk · Ebuzer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚽</text></svg>">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="stadium-glow"></div>
+
+<!-- ============ LOGIN ============ -->
+<section id="view-login" class="view view-login active">
+  <div class="login-wrap">
+    <div class="brand">
+      <span class="brand-eyebrow">Haftanın Kuponu</span>
+      <h1 class="brand-title">KUPON<span class="dot">.</span></h1>
+    </div>
+
+    <div id="name-select" class="name-grid">
+      <!-- doldurulur: app.js -->
+    </div>
+
+    <div id="pin-pad" class="pin-pad hidden">
+      <button id="back-to-names" class="link-btn" type="button">&larr; Geri</button>
+      <p id="pin-heading" class="pin-heading">Hoş geldin, <span id="pin-name">Oyuncu</span></p>
+      <p id="pin-sub" class="pin-sub">4 haneli şifreni gir</p>
+      <div class="pin-dots" id="pin-dots">
+        <span class="pin-dot"></span><span class="pin-dot"></span><span class="pin-dot"></span><span class="pin-dot"></span>
+      </div>
+      <p id="pin-error" class="pin-error hidden">Şifre yanlış, tekrar dene.</p>
+      <div class="keypad">
+        <button class="key" data-k="1">1</button>
+        <button class="key" data-k="2">2</button>
+        <button class="key" data-k="3">3</button>
+        <button class="key" data-k="4">4</button>
+        <button class="key" data-k="5">5</button>
+        <button class="key" data-k="6">6</button>
+        <button class="key" data-k="7">7</button>
+        <button class="key" data-k="8">8</button>
+        <button class="key" data-k="9">9</button>
+        <button class="key key-ghost" disabled></button>
+        <button class="key" data-k="0">0</button>
+        <button class="key key-del" id="pin-del">⌫</button>
+      </div>
+      <button id="pin-submit" class="btn-primary full" type="button" disabled>Giriş Yap</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ APP SHELL ============ -->
+<div id="app-shell" class="app-shell hidden">
+  <header class="topbar">
+    <div class="topbar-left">
+      <span class="brand-title small">KUPON<span class="dot">.</span></span>
+    </div>
+    <nav class="topbar-nav">
+      <button class="nav-btn active" data-view="home">Kuponlar</button>
+      <button class="nav-btn" data-view="matches">Maçlar</button>
+      <button class="nav-btn" data-view="stats">İstatistik</button>
+      <button class="nav-btn nav-btn-rules" data-view="rules">Kurallar</button>
+    </nav>
+    <div class="topbar-right">
+      <span id="current-user-tag" class="user-tag">Nihat</span>
+      <button id="logout-btn" class="link-btn" type="button">Çıkış</button>
+    </div>
+  </header>
+
+  <!-- ============ HOME ============ -->
+  <main id="view-home" class="view view-home active">
+    <div class="home-head">
+      <div>
+        <h2 class="section-title">Kuponlar</h2>
+        <p class="section-sub">Bugünün kuponu yoksa yeni bir tane aç.</p>
+      </div>
+      <div class="home-head-right">
+        <div id="pool-card" class="pool-card"></div>
+        <button id="new-coupon-btn" class="btn-primary">+ Yeni Kupon</button>
+      </div>
+    </div>
+    <div id="coupon-list" class="coupon-list">
+      <!-- doldurulur: app.js -->
+    </div>
+  </main>
+
+  <!-- ============ COUPON DETAIL ============ -->
+  <main id="view-coupon" class="view view-coupon">
+    <button id="back-to-home" class="link-btn back-link" type="button">&larr; Kuponlara dön</button>
+
+    <div class="ticket">
+      <div class="ticket-top">
+        <div>
+          <span class="ticket-eyebrow">Kupon</span>
+          <h2 id="coupon-title" class="ticket-title">—</h2>
+        </div>
+        <span id="coupon-status" class="status-pill">Açık</span>
+      </div>
+
+      <div class="perforation" aria-hidden="true"></div>
+
+      <div id="admin-bar" class="admin-bar hidden"></div>
+
+      <div id="match-slots" class="match-slots">
+        <!-- doldurulur: app.js -->
+      </div>
+
+      <div id="kupon-summary" class="kupon-summary hidden"></div>
+
+      <div class="perforation" aria-hidden="true"></div>
+
+      <div id="ticket-footer" class="ticket-footer">
+        <!-- doldurulur: app.js (onadım / sonuç bölümü) -->
+      </div>
+    </div>
+  </main>
+
+  <!-- ============ STATS ============ -->
+  <main id="view-stats" class="view view-stats">
+    <div class="stats-layout">
+
+      <aside class="stats-side">
+        <div class="leaderboard-col">
+          <div class="lb-head">
+            <span class="lb-emoji">🏆</span>
+            <div>
+              <div class="lb-title">Tüm Zamanlar Lider Tablosu</div>
+              <div class="lb-range" id="lb-week-range">—</div>
+            </div>
+          </div>
+          <div id="lb-week-list" class="lb-list"><!-- doldurulur: app.js --></div>
+        </div>
+
+        <div class="leaderboard-col debt-card">
+          <div class="lb-head">
+            <span class="lb-emoji">💸</span>
+            <div>
+              <div class="lb-title">Kasaya Borç</div>
+              <div class="lb-range">Havuzdan oynanıp kaybedilen kuponlar</div>
+            </div>
+          </div>
+          <div id="debt-list" class="simple-list"><!-- doldurulur: app.js --></div>
+        </div>
+
+        <div class="leaderboard-col share-card">
+          <div class="lb-head">
+            <span class="lb-emoji">🏦</span>
+            <div>
+              <div class="lb-title">Kasadaki Payınız</div>
+              <div class="lb-range">Borçlar düşülüp bölüştürülmüş hali</div>
+            </div>
+          </div>
+          <div id="share-list" class="simple-list"><!-- doldurulur: app.js --></div>
+        </div>
+      </aside>
+
+      <div class="stats-main">
+        <h2 class="section-title">İstatistikler</h2>
+        <p class="section-sub">Kim kaç maç girdi, kimin isabeti yüksek, kuponlar genel olarak nasıl gidiyor.</p>
+
+        <div id="overall-stats" class="overall-stats">
+          <!-- doldurulur: app.js -->
+        </div>
+
+        <h3 class="subsection-title">Oyunculara göre</h3>
+        <div id="player-stats" class="player-stats-grid">
+          <!-- doldurulur: app.js -->
+        </div>
+
+        <h3 class="subsection-title">Grafikler</h3>
+        <div class="chart-filters">
+          <div class="filter-group">
+            <span class="filter-label">Dönem</span>
+            <div class="filter-btns" id="chart-period-btns">
+              <button class="filter-btn active" data-period="week">Bu Hafta</button>
+              <button class="filter-btn" data-period="month">Bu Ay</button>
+              <button class="filter-btn" data-period="all">Tüm Zamanlar</button>
+            </div>
+          </div>
+          <div class="filter-group">
+            <span class="filter-label">Metrik</span>
+            <div class="filter-btns" id="chart-metric-btns">
+              <button class="filter-btn active" data-metric="entered">Girilen Maç</button>
+              <button class="filter-btn" data-metric="won">Kazanılan Maç</button>
+              <button class="filter-btn" data-metric="hitrate">İsabet Oranı</button>
+              <button class="filter-btn" data-metric="amount">Toplam Yatırım</button>
+              <button class="filter-btn" data-metric="oddsproduct">Oran Toplamı</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-card-title">Karşılaştırma</div>
+          <canvas id="chart-bar" height="200"></canvas>
+        </div>
+        <div class="chart-card">
+          <div class="chart-card-title">Zaman İçindeki Gidişat (Kümülatif)</div>
+          <canvas id="chart-line" height="200"></canvas>
+        </div>
+      </div>
+
+      <aside class="stats-side">
+        <div class="leaderboard-col">
+          <div class="lb-head">
+            <span class="lb-emoji">📅</span>
+            <div>
+              <div class="lb-title">Aylık Lider Tablosu</div>
+              <div class="lb-range" id="lb-month-range">—</div>
+            </div>
+          </div>
+          <div id="lb-month-list" class="lb-list"><!-- doldurulur: app.js --></div>
+        </div>
+      </aside>
+
+    </div>
+  </main>
+
+  <!-- ============ MATCHES (canlı veri) ============ -->
+  <main id="view-matches" class="view view-matches">
+    <div class="matches-head">
+      <div>
+        <h2 class="section-title">Maçlar</h2>
+        <p class="section-sub">Maç programı, skorlar ve istatistikler.</p>
+      </div>
+      <div id="matches-updated" class="matches-updated">—</div>
+    </div>
+    <div class="matches-day-tabs">
+      <button class="filter-btn active" data-day="today">Bugün</button>
+      <button class="filter-btn" data-day="tomorrow">Yarın</button>
+    </div>
+    <p class="matches-note">
+      ℹ️ Bugün verisi 09:00'da, yarın verisi 12:00'de otomatik güncellenir, canlı akış değildir.
+      Oranlar Bet365 referanslıdır, <strong>resmi İddaa oranı değildir</strong> — yaklaşık piyasa oranı olarak düşünün.
+    </p>
+    <div id="matches-list" class="matches-list">
+<div class="league-group">
+  <div class="league-group-title">Süper Lig</div>
+  <div class="match-card-wrap">
+    <div class="match-card">
+      <span class="match-time match-live">67'</span>
+      <span class="match-teams">Fenerbahçe — Trabzonspor</span>
+      <span class="match-score">2 - 1</span>
+      <button class="match-detail-toggle" onclick="this.closest('.match-card-wrap').querySelector('.match-detail').classList.toggle('hidden')">İstatistik ▾</button>
+    </div>
+    <div class="match-detail">
+      <div class="stats-grid">
+        <div class="stats-col">
+          <div class="stats-col-title">Fenerbahçe</div>
+          <div class="stats-line"><span>Form (son 5)<span class="stat-info" data-tooltip="W = Galibiyet, D = Beraberlik, L = Mağlubiyet">ⓘ</span></span><span class="form-chips">
+            <span class="form-chip form-w">W</span><span class="form-chip form-w">W</span><span class="form-chip form-d">D</span><span class="form-chip form-w">W</span><span class="form-chip form-l">L</span>
+          </span></div>
+          <div class="stats-line"><span>Attığı gol ort.<span class="stat-info" data-tooltip="Sadece iç sahadaki maçlarına göre ortalama.">ⓘ</span></span><span>2.1</span></div>
+          <div class="stats-line"><span>Yediği gol ort.<span class="stat-info" data-tooltip="Sadece iç sahadaki maçlarına göre ortalama.">ⓘ</span></span><span>0.9</span></div>
+        </div>
+        <div class="stats-col">
+          <div class="stats-col-title">Trabzonspor</div>
+          <div class="stats-line"><span>Form (son 5)<span class="stat-info" data-tooltip="W = Galibiyet, D = Beraberlik, L = Mağlubiyet">ⓘ</span></span><span class="form-chips">
+            <span class="form-chip form-l">L</span><span class="form-chip form-w">W</span><span class="form-chip form-w">W</span><span class="form-chip form-d">D</span><span class="form-chip form-w">W</span>
+          </span></div>
+          <div class="stats-line"><span>Attığı gol ort.<span class="stat-info" data-tooltip="Sadece deplasmandaki maçlarına göre ortalama.">ⓘ</span></span><span>1.6</span></div>
+          <div class="stats-line"><span>Yediği gol ort.<span class="stat-info" data-tooltip="Sadece deplasmandaki maçlarına göre ortalama.">ⓘ</span></span><span>1.2</span></div>
+        </div>
+      </div>
+
+      <div class="stats-col-title compare-title">Karşılaştırma<span class="stat-info" data-tooltip="API-Football'ın kendi istatistiksel modeli (form, hücum, savunma, gol, geçmiş maçlar). Bahis oranı değildir.">ⓘ</span></div>
+      <div class="compare-block">
+        <div class="compare-row">
+          <div class="compare-label">Hücum Gücü<span class="stat-info" data-tooltip="İki takımın hücum gücünün yüzdesel karşılaştırması (attığı gol, isabetli şut gibi verilere dayanır).">ⓘ</span></div>
+          <div class="compare-bar"><span class="compare-seg compare-seg-home" style="width:58%"></span><span class="compare-seg compare-seg-away" style="width:42%"></span></div>
+          <div class="compare-values"><span>58%</span><span>42%</span></div>
+        </div>
+        <div class="compare-row">
+          <div class="compare-label">Savunma Gücü<span class="stat-info" data-tooltip="İki takımın savunma gücünün yüzdesel karşılaştırması (yediği gol, önlenen şut gibi verilere dayanır).">ⓘ</span></div>
+          <div class="compare-bar"><span class="compare-seg compare-seg-home" style="width:45%"></span><span class="compare-seg compare-seg-away" style="width:55%"></span></div>
+          <div class="compare-values"><span>45%</span><span>55%</span></div>
+        </div>
+        <div class="compare-row">
+          <div class="compare-label">Form<span class="stat-info" data-tooltip="Son maçlardaki genel performansa göre karşılaştırma.">ⓘ</span></div>
+          <div class="compare-bar"><span class="compare-seg compare-seg-home" style="width:65%"></span><span class="compare-seg compare-seg-away" style="width:35%"></span></div>
+          <div class="compare-values"><span>65%</span><span>35%</span></div>
+        </div>
+      </div>
+
+      <div class="stats-predict">
+        <span class="predict-chip">Ev %52 · Berabere %26 · Dep %22<span class="stat-info" data-tooltip="API-Football'ın istatistiksel modeline göre maç sonucu olasılığı. Bahis oranı değildir.">ⓘ</span></span>
+        <span class="predict-chip">Olası toplam gol*: 3.70</span>
+      </div>
+      <p class="stats-disclaimer">* Toplam gol tahmini, iki takımın attığı gol ortalamalarının toplamıdır.</p>
+      <div class="stats-h2h">
+        <div class="stats-col-title">Son karşılaşmalar</div>
+        <div class="h2h-row"><span class="h2h-date">12.03.2026</span><span class="h2h-teams">Trabzonspor 1-1 Fenerbahçe</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+  </main>
+
+  <!-- ============ RULES ============ -->
+  <main id="view-rules" class="view view-rules">
+    <div class="rules-banner">
+      <span class="rules-banner-eyebrow">Uyulması Zorunlu</span>
+      <h2 class="rules-banner-title">📌 İddaa Grup Kuralları</h2>
+    </div>
+    <div id="rules-list" class="rules-list">
+      <!-- doldurulur: app.js -->
+    </div>
+  </main>
+</div>
+
+<!-- ============ MATCH FORM MODAL ============ -->
+<div id="match-modal" class="modal-overlay hidden">
+  <div class="modal-card">
+    <div class="modal-head">
+      <span class="ticket-eyebrow">Maçını gir</span>
+      <button id="close-modal" class="link-btn" type="button">Vazgeç</button>
+    </div>
+    <label class="field-label">Takımlar</label>
+    <input id="input-teams" class="field-input" type="text" placeholder="Örn: Fenerbahçe - Trabzonspor" maxlength="60">
+
+    <label class="field-label">Zaman</label>
+    <div class="field-row">
+      <select id="input-day" class="field-input field-select">
+        <option value="">Gün seç</option>
+        <option value="Pazartesi">Pazartesi</option>
+        <option value="Salı">Salı</option>
+        <option value="Çarşamba">Çarşamba</option>
+        <option value="Perşembe">Perşembe</option>
+        <option value="Cuma">Cuma</option>
+        <option value="Cumartesi">Cumartesi</option>
+        <option value="Pazar">Pazar</option>
+      </select>
+      <input id="input-time" class="field-input field-mono" type="time" step="900">
+    </div>
+
+    <label class="field-label">Tahmin</label>
+    <input id="input-prediction" class="field-input" type="text" placeholder="Örn: MS1, Alt 2.5, Çifte Şans 1X" maxlength="40">
+
+    <label class="field-label">Oran</label>
+    <input id="input-odds" class="field-input field-mono" type="number" step="0.01" min="1.01" placeholder="2.00">
+
+    <label class="field-label">Yatıracağın Tutar (₺)</label>
+    <input id="input-amount" class="field-input field-mono" type="number" step="1" min="1" placeholder="100">
+
+    <p id="modal-error" class="pin-error hidden">Tüm alanları doldur.</p>
+    <p class="modal-warning">⚠ Kupon oynandıktan sonra kendi maçını artık değiştiremezsin.</p>
+    <button id="submit-match" class="btn-primary full">Kaydet (Değiştirilemez)</button>
+  </div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+
+<script>
+document.getElementById("view-login").classList.remove("active");
+document.getElementById("app-shell").classList.remove("hidden");
+document.querySelector('[data-view="matches"]').click();
+</script>
+</body>
+</html>

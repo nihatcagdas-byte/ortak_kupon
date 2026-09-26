@@ -324,6 +324,21 @@ async function adjustPoolManually() {
    MAÇLAR (API-Football'dan günde 2 kez çekilen veri)
    ============================================================ */
 let unsubMatches = null;
+const standingsCache = {};
+
+async function preloadStandings(data) {
+  if (!data || !data.matches) return;
+  const leagueIds = [...new Set(data.matches.map(m => m.leagueId))].filter(id => !(id in standingsCache));
+  await Promise.all(leagueIds.map(async id => {
+    try {
+      const snap = await getDoc(doc(db, "standings", String(id)));
+      standingsCache[id] = snap.exists() ? (snap.data().table || []) : [];
+    } catch (err) {
+      console.error(`Puan durumu okunamadı (lig ${id}):`, err);
+      standingsCache[id] = [];
+    }
+  }));
+}
 let matchesDay = "today";
 
 function subscribeMatches() {
@@ -331,12 +346,14 @@ function subscribeMatches() {
   const base = new Date();
   if (matchesDay === "tomorrow") base.setDate(base.getDate() + 1);
   const dateKey = dateKeyFor(base);
-  unsubMatches = onSnapshot(doc(db, "liveMatches", dateKey), (snap) => {
+  unsubMatches = onSnapshot(doc(db, "liveMatches", dateKey), async (snap) => {
     if (!snap.exists()) {
       renderMatches(null);
       return;
     }
-    renderMatches(snap.data());
+    const data = snap.data();
+    await preloadStandings(data);
+    renderMatches(data);
   }, (err) => {
     console.error("Maç verisi okunamadı:", err);
     renderMatches(null);
@@ -460,6 +477,50 @@ function compareBar(key, pair) {
   `;
 }
 
+function restDaysLine(s, m) {
+  if (!s.restDays || (s.restDays.home == null && s.restDays.away == null)) return "";
+  const h = s.restDays.home != null ? `${s.restDays.home} gün` : "veri yok";
+  const a = s.restDays.away != null ? `${s.restDays.away} gün` : "veri yok";
+  return `
+    <div class="stats-predict">
+      <span class="predict-chip">🛌 ${escapeHtml(m.home)}: ${h} dinlenmiş${tip("Takımın bir önceki maçından bu yana geçen gün sayısı. Sitemizin kendi geçmiş kayıtlarından hesaplanır (API'den değil) — ilk günlerde yeterli geçmiş birikmediyse boş çıkabilir.")}</span>
+      <span class="predict-chip">🛌 ${escapeHtml(m.away)}: ${a} dinlenmiş</span>
+    </div>
+  `;
+}
+
+function injuriesBlock(s) {
+  const home = (s.injuries && s.injuries.home) || [];
+  const away = (s.injuries && s.injuries.away) || [];
+  if (home.length === 0 && away.length === 0) return "";
+  const renderList = (list) => list.length
+    ? list.map(p => `<div class="injury-row">🚑 ${escapeHtml(p.player || "?")} <span class="injury-reason">${escapeHtml(p.reason || "")}</span></div>`).join("")
+    : `<p class="stats-empty">Bilinen eksik yok.</p>`;
+  return `
+    <div class="stats-col-title compare-title">Sakatlık / Ceza${tip("API-Football'dan çekilen, maç günü itibarıyla kadro dışı olduğu bilinen oyuncular. Liste her ligde eksiksiz olmayabilir.")}</div>
+    <div class="stats-grid">
+      <div class="stats-col">${renderList(home)}</div>
+      <div class="stats-col">${renderList(away)}</div>
+    </div>
+  `;
+}
+
+function standingsBlock(m) {
+  const table = standingsCache[m.leagueId];
+  if (!table || table.length === 0) return "";
+  const homeRow = table.find(r => r.teamId === m.homeId);
+  const awayRow = table.find(r => r.teamId === m.awayId);
+  if (!homeRow && !awayRow) return "";
+  const rowHtml = (r) => r
+    ? `${r.rank}. sıra · ${r.points} puan · ${r.win}G ${r.draw}B ${r.lose}M`
+    : "—";
+  return `
+    <div class="stats-col-title compare-title">Puan Durumu${tip("Ligdeki güncel sıralama. API kotasını korumak için haftada bir kez, Salı sabahı güncellenir — anlık değildir.")}</div>
+    <div class="stats-line"><span>${escapeHtml(m.home)}</span><span>${rowHtml(homeRow)}</span></div>
+    <div class="stats-line"><span>${escapeHtml(m.away)}</span><span>${rowHtml(awayRow)}</span></div>
+  `;
+}
+
 function buildStatsPanel(m) {
   const s = m.stats;
   const h2hRows = (s.h2h || []).map(h => {
@@ -501,6 +562,9 @@ function buildStatsPanel(m) {
         ${combinedGoalsChip(s.goalsAvg)}
       </div>
       <p class="stats-disclaimer">* Toplam gol tahmini, iki takımın attığı gol ortalamalarının toplamıdır — kendi hesapladığımız kaba bir gösterge, resmi bahis oranı değildir.</p>
+      ${restDaysLine(s, m)}
+      ${standingsBlock(m)}
+      ${injuriesBlock(s)}
       <div class="stats-h2h">
         <div class="stats-col-title">Son karşılaşmalar</div>
         ${h2hRows}

@@ -770,6 +770,8 @@ main.view.view-stats{ max-width:1700px; }
 .h2h-date{ font-family:var(--font-mono); color:var(--text-dim); flex-shrink:0; }
 .h2h-teams{ text-align:right; color:var(--text); }
 .stats-empty{ font-size:12px; color:var(--text-dim); margin:4px 0 0; }
+.injury-row{ font-size:12px; padding:4px 0; color:var(--text); }
+.injury-reason{ color:var(--text-dim); font-size:11px; }
 .stats-disclaimer{ font-size:10.5px; color:var(--text-dim); font-style:italic; margin:0 0 12px; }
 
 /* Bilgi ikonu + üzerine gelince çıkan açıklama balonu */
