@@ -2,15 +2,21 @@ name: Fetch Football Data
 
 on:
   schedule:
-    - cron: "0 6 * * *"   # 09:00 Türkiye saati → BUGÜN
-    - cron: "0 9 * * *"   # 12:00 Türkiye saati → YARIN
+    - cron: "0 6 * * *"    # 09:00 Türkiye saati → BUGÜN (maçlar)
+    - cron: "0 9 * * *"    # 12:00 Türkiye saati → YARIN (maçlar)
+    - cron: "0 4 * * 2"    # Salı 07:00 Türkiye saati → puan durumu (haftalık)
   workflow_dispatch:
     inputs:
       target_day:
-        description: "Hangi gün çekilsin?"
+        description: "Hangi gün çekilsin? (mode=matches için)"
         type: choice
         options: [today, tomorrow]
         default: today
+      mode:
+        description: "Ne çekilsin?"
+        type: choice
+        options: [matches, standings]
+        default: matches
 
 jobs:
   fetch:
@@ -34,4 +40,5 @@ jobs:
           API_FOOTBALL_KEY: ${{ secrets.API_FOOTBALL_KEY }}
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           TARGET_DAY: ${{ github.event.inputs.target_day || (github.event.schedule == '0 9 * * *' && 'tomorrow' || 'today') }}
+          MODE: ${{ github.event.inputs.mode || (github.event.schedule == '0 4 * * 2' && 'standings' || 'matches') }}
         run: node fetch-football-data.js
