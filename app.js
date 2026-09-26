@@ -832,6 +832,7 @@ function renderTicketFooter(c, info) {
       <div class="final-banner ${won ? "won" : "lost"}">${won ? "🏆 Kupon Tuttu" : "Kupon Tutmadı"}</div>
       <p class="play-summary">Oynatan: <strong>${c.playedBy}</strong> · Kaynak: <strong>${fundLabel}</strong></p>
     `;
+    if (isAdmin()) footer.appendChild(buildFundEditRow(c));
 
     if (won) {
       if (c.payoutAction) {
@@ -863,10 +864,48 @@ function renderTicketFooter(c, info) {
   const fundLabel = c.fundingSource === "pool" ? "Havuzdan" : "Kullanıcılardan";
   if (!canEditResults) {
     footer.innerHTML = `<p class="footer-note">Kuponu <strong>${c.playedBy}</strong> oynattı (${fundLabel}). Sonuçları o (ya da admin) işaretleyecek.</p>`;
+    if (isAdmin()) footer.appendChild(buildFundEditRow(c));
     return;
   }
   footer.insertAdjacentHTML("beforeend", `<p class="footer-note">${c.playedBy === currentUser ? "Kuponu sen oynattın" : "Admin olarak"} (${fundLabel}). Maçlar bitince sonuçları işaretle:</p>`);
+  if (isAdmin()) footer.appendChild(buildFundEditRow(c));
   appendResultRows(footer, c);
+}
+
+function buildFundEditRow(c) {
+  const wrap = document.createElement("div");
+  wrap.className = "fund-edit-row";
+  wrap.innerHTML = `
+    <span class="fund-edit-label">★ Admin — kaynağı düzelt:</span>
+    <button class="fund-edit-btn ${c.fundingSource === "players" ? "active" : ""}" data-source="players">👥 Kullanıcılardan</button>
+    <button class="fund-edit-btn ${c.fundingSource === "pool" ? "active" : ""}" data-source="pool">🏦 Havuzdan</button>
+  `;
+  wrap.querySelectorAll(".fund-edit-btn").forEach(btn => {
+    btn.addEventListener("click", () => adminChangeFundingSource(c, btn.dataset.source));
+  });
+  return wrap;
+}
+
+async function adminChangeFundingSource(c, newSource) {
+  if (newSource === c.fundingSource) return;
+  const totals = couponTotals(c);
+  try {
+    if (c.fundingSource === "pool" && newSource === "players") {
+      // Havuzdan düşülmüştü, geri iade et
+      await updateDoc(poolRef, { balance: increment(totals.totalStake) });
+    } else if (c.fundingSource === "players" && newSource === "pool") {
+      if (poolBalance < totals.totalStake) {
+        showToast(`Havuzda yeterli bakiye yok (Havuz: ${poolBalance.toFixed(0)}₺, Gerekli: ${totals.totalStake}₺)`);
+        return;
+      }
+      await updateDoc(poolRef, { balance: increment(-totals.totalStake) });
+    }
+    await updateDoc(doc(db, "coupons", c.id), { fundingSource: newSource });
+    showToast("Kaynak güncellendi ✔");
+  } catch (err) {
+    console.error(err);
+    showToast("Güncellenemedi: " + (err.code || err.message));
+  }
 }
 
 function appendResultRows(footer, c) {
