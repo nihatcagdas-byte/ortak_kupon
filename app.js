@@ -17,6 +17,8 @@ let couponsCache = [];
 let unsubCouponList = null;
 let unsubCouponDetail = null;
 let unsubPool = null;
+let unsubPayments = null;
+let paymentsCache = [];
 let modalTargetUser = null;
 let poolBalance = 0;
 const poolRef = doc(db, "meta", "pool");
@@ -249,6 +251,7 @@ function logout() {
   if (unsubCouponDetail) unsubCouponDetail();
   if (unsubPool) unsubPool();
   if (unsubMatches) unsubMatches();
+  if (unsubPayments) unsubPayments();
   document.getElementById("app-shell").classList.add("hidden");
   document.getElementById("view-login").classList.add("active");
   document.getElementById("pin-pad").classList.add("hidden");
@@ -267,6 +270,7 @@ function enterApp() {
   switchView("home");
   subscribeCouponList();
   subscribePool();
+  subscribePayments();
   subscribeMatches();
 }
 
@@ -1135,7 +1139,7 @@ function renderLeaderboards() {
 // kazananların yatırdığı tutarı kasaya geri ödemekle yükümlü (Kural 4).
 // Bu borç kasadan otomatik düşülmüyor — burada sadece ne kadar borçlu
 // olduğu hesaplanıp gösteriliyor.
-function computeDebts() {
+function computeRawDebts() {
   const debtByUser = {};
   couponsCache.forEach(c => {
     if (c.fundingSource !== "pool") return;
@@ -1146,22 +1150,83 @@ function computeDebts() {
     if (losers.length === 0 || winners.length === 0) return;
     const winnersStakeTotal = winners.reduce((sum, u) => sum + Number((c.matches[u] && c.matches[u].amount) || 0), 0);
     const perLoserShare = winnersStakeTotal / losers.length;
-    losers.forEach(u => {
-      debtByUser[u] = (debtByUser[u] || 0) + perLoserShare;
-    });
+    losers.forEach(u => { debtByUser[u] = (debtByUser[u] || 0) + perLoserShare; });
   });
   return debtByUser;
+}
+
+function paymentsSum(type, user) {
+  return paymentsCache
+    .filter(p => p.type === type && p.user === user)
+    .reduce((s, p) => s + Number(p.amount || 0), 0);
+}
+
+// Net borç = kupon kayıplarından doğan ham borç − bugüne kadar yapılan borç ödemeleri
+function computeDebts() {
+  const raw = computeRawDebts();
+  const net = {};
+  Object.keys(raw).forEach(u => {
+    net[u] = Math.max(0, raw[u] - paymentsSum("debt_payment", u));
+  });
+  return net;
+}
+
+function subscribePayments() {
+  if (unsubPayments) unsubPayments();
+  const q = query(collection(db, "payments"), orderBy("date", "desc"));
+  unsubPayments = onSnapshot(q, (snap) => {
+    paymentsCache = [];
+    snap.forEach(d => paymentsCache.push({ id: d.id, ...d.data() }));
+    renderDebtAndShare();
+  }, (err) => console.error("Ödemeler okunamadı:", err));
+}
+
+async function recordPayment(type, user, defaultAmount) {
+  const isDebt = type === "debt_payment";
+  const input = window.prompt(
+    `${user} için ${isDebt ? "borç ödemesi" : "pay ödemesi"} tutarı (₺):`,
+    String(Math.round(defaultAmount))
+  );
+  if (input === null) return;
+  const amount = parseFloat(String(input).replace(",", "."));
+  if (isNaN(amount) || amount <= 0) { showToast("Geçersiz tutar"); return; }
+  if (!isDebt && amount > poolBalance) {
+    showToast(`Kasada yeterli bakiye yok (${poolBalance.toFixed(0)}₺)`);
+    return;
+  }
+  const msg = isDebt
+    ? `${user} kasaya ${amount}₺ borç ödedi. Kaydedilsin mi?`
+    : `${user} kişisine kasadan ${amount}₺ ödendi. Kaydedilsin mi?`;
+  if (!window.confirm(msg)) return;
+  try {
+    await setDoc(doc(collection(db, "payments")), {
+      type, user, amount,
+      date: serverTimestamp(),
+      recordedBy: currentUser
+    });
+    await updateDoc(poolRef, { balance: increment(isDebt ? amount : -amount) });
+    showToast("Ödeme kaydedildi ✔");
+  } catch (err) {
+    console.error(err);
+    showToast("Kaydedilemedi: " + (err.code || err.message));
+  }
 }
 
 function renderDebtAndShare() {
   const debtList = document.getElementById("debt-list");
   const shareList = document.getElementById("share-list");
+  const historyEl = document.getElementById("payment-history");
   if (!debtList || !shareList) return;
 
   const debtByUser = computeDebts();
   const N = USERS.length;
   const totalDebt = USERS.reduce((sum, u) => sum + (debtByUser[u] || 0), 0);
-  const baseShare = N > 0 ? poolBalance / N : 0;
+  const paidOut = {};
+  USERS.forEach(u => { paidOut[u] = paymentsSum("share_payout", u); });
+  const totalPaidOut = USERS.reduce((sum, u) => sum + paidOut[u], 0);
+  // Brüt toplam: kasada kalan + bugüne kadar kişilere ödenenler
+  const grossTotal = poolBalance + totalPaidOut;
+  const baseShare = N > 0 ? grossTotal / N : 0;
 
   debtList.innerHTML = "";
   USERS.forEach(u => {
@@ -1171,7 +1236,10 @@ function renderDebtAndShare() {
     row.className = "simple-row";
     row.innerHTML = `
       <span class="simple-row-name">${u}</span>
-      <span class="simple-row-value ${cls}">${debt > 0 ? "-" : ""}${debt.toFixed(0)}₺</span>
+      <span class="simple-row-actions">
+        <span class="simple-row-value ${cls}">${debt > 0 ? "-" : ""}${debt.toFixed(0)}₺</span>
+        ${isAdmin() && debt > 0 ? `<button class="pay-btn" data-type="debt_payment" data-user="${u}" data-amount="${debt}">Borç Ödendi</button>` : ""}
+      </span>
     `;
     debtList.appendChild(row);
   });
@@ -1180,14 +1248,18 @@ function renderDebtAndShare() {
   USERS.forEach(u => {
     const debt = debtByUser[u] || 0;
     const othersDebtSum = totalDebt - debt;
-    const share = N > 1
+    const fair = N > 1
       ? baseShare - debt + (othersDebtSum / (N - 1))
       : baseShare - debt;
+    const share = fair - paidOut[u];
     const row = document.createElement("div");
     row.className = "simple-row";
     row.innerHTML = `
       <span class="simple-row-name">${u}</span>
-      <span class="simple-row-value is-share">${share.toFixed(0)}₺</span>
+      <span class="simple-row-actions">
+        <span class="simple-row-value is-share">${share.toFixed(0)}₺</span>
+        ${isAdmin() && share > 0 ? `<button class="pay-btn" data-type="share_payout" data-user="${u}" data-amount="${share}">Payı Öde</button>` : ""}
+      </span>
     `;
     shareList.appendChild(row);
   });
@@ -1203,8 +1275,33 @@ function renderDebtAndShare() {
   if (totalDebt > 0) {
     const note = document.createElement("p");
     note.className = "debt-note";
-    note.textContent = "Borçlu kişinin payından borcu düşülüp, kalan diğer kişilere eşit bölüştürülmüştür.";
+    note.textContent = "Borçlu kişinin payından borcu düşülüp, kalan diğer kişilere eşit bölüştürülmüştür. Daha önce ödenen paylar düşülmüştür.";
     shareList.appendChild(note);
+  }
+
+  document.querySelectorAll(".pay-btn").forEach(btn => {
+    btn.addEventListener("click", () => recordPayment(btn.dataset.type, btn.dataset.user, Number(btn.dataset.amount)));
+  });
+
+  if (historyEl) {
+    historyEl.innerHTML = "";
+    if (paymentsCache.length === 0) {
+      historyEl.innerHTML = `<p class="stats-empty">Henüz kayıtlı ödeme yok.</p>`;
+    } else {
+      paymentsCache.forEach(p => {
+        const isDebt = p.type === "debt_payment";
+        const row = document.createElement("div");
+        row.className = "payment-row";
+        row.innerHTML = `
+          <div class="payment-main">
+            <div class="payment-title">${escapeHtml(p.user)} · ${isDebt ? "Borç ödemesi" : "Pay ödemesi"}</div>
+            <div class="payment-meta">${formatTimestamp(p.date)} · Kaydeden: ${escapeHtml(p.recordedBy || "?")}</div>
+          </div>
+          <span class="payment-amount ${isDebt ? "is-in" : "is-out"}">${isDebt ? "+" : "-"}${Number(p.amount).toFixed(0)}₺</span>
+        `;
+        historyEl.appendChild(row);
+      });
+    }
   }
 }
 
