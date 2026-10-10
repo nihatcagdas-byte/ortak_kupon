@@ -1,0 +1,77 @@
+/* Tahminler sekmesi. Mevcut tema değişkenlerini kullanır, yoksa güvenli varsayılanlar. */
+.view-tahminler { --thm-line: color-mix(in srgb, currentColor 14%, transparent); --thm-soft: color-mix(in srgb, currentColor 6%, transparent); --thm-win: var(--win, #12A26A); --thm-lose: var(--lose, #E23A63); --thm-blue: var(--blue, #1878F2); }
+.view-tahminler .thm-head { margin-bottom: 8px; }
+.thm-section { margin: 22px 0 34px; }
+.thm-h { font-size: 1.15rem; margin: 0 0 10px; }
+.thm-durum { font-size: .85rem; padding: 10px 12px; border-radius: 12px; background: var(--thm-soft); margin-bottom: 12px; line-height: 1.45; }
+.thm-durum.uyari { background: color-mix(in srgb, #E8A100 16%, transparent); }
+.thm-tools { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 12px; }
+.thm-tools .matches-day-tabs { margin: 0; }
+.thm-ara { flex: 1 1 200px; min-width: 0; padding: 9px 14px; border-radius: 999px; border: 1px solid var(--thm-line); background: var(--surface, transparent); color: inherit; font: inherit; }
+.thm-chk { display: flex; gap: 6px; align-items: center; font-size: .85rem; white-space: nowrap; }
+.thm-say { font-size: .8rem; opacity: .7; margin: 0 0 8px; }
+.thm-bos, .thm-bos-kutu { opacity: .75; font-size: .9rem; }
+.thm-bos-kutu { padding: 16px; border: 1px dashed var(--thm-line); border-radius: 14px; }
+.thm-bos-kutu p { margin: 6px 0 0; }
+
+/* maç listesi */
+.thm-lig { margin-bottom: 14px; border: 1px solid var(--thm-line); border-radius: 14px; overflow: hidden; background: var(--surface, transparent); }
+.thm-lig > h4 { margin: 0; padding: 8px 12px; font-size: .78rem; letter-spacing: .04em; text-transform: uppercase; background: var(--thm-soft); }
+.thm-row { display: grid; grid-template-columns: 52px minmax(0, 1.3fr) minmax(0, 2fr) 34px; gap: 8px 10px; align-items: center; padding: 9px 12px; border-top: 1px solid var(--thm-line); }
+.thm-lig > h4 + .thm-row { border-top: 0; }
+.thm-time { font-family: "JetBrains Mono", monospace; font-size: .85rem; opacity: .8; }
+.thm-teams { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.thm-teams b, .thm-teams span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.thm-teams span { opacity: .8; }
+.thm-mbs { font-size: .65rem; opacity: .7; }
+.thm-odds, .thm-ek { display: flex; flex-wrap: wrap; gap: 8px 14px; }
+.thm-ek { grid-column: 1 / -1; padding: 8px 0 2px 62px; }
+.thm-grp { display: inline-flex; align-items: center; gap: 4px; }
+.thm-grp em { font-style: normal; font-size: .68rem; opacity: .6; margin-right: 2px; min-width: 2.2em; }
+.thm-o { display: inline-flex; flex-direction: column; align-items: center; min-width: 40px; padding: 3px 5px; border-radius: 8px; background: var(--thm-soft); }
+.thm-o i { font-style: normal; font-size: .62rem; opacity: .6; }
+.thm-o b { font-family: "JetBrains Mono", monospace; font-size: .82rem; }
+.thm-more { width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--thm-line); background: transparent; color: inherit; cursor: pointer; font-size: 1rem; line-height: 1; }
+.thm-more:hover { border-color: var(--thm-blue); color: var(--thm-blue); }
+
+/* AI bölümü */
+.thm-stat { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; margin-bottom: 10px; }
+.thm-stat > div { padding: 10px 12px; border-radius: 12px; background: var(--thm-soft); }
+.thm-stat i { display: block; font-style: normal; font-size: .72rem; opacity: .65; }
+.thm-stat b { font-family: "JetBrains Mono", monospace; font-size: 1.1rem; }
+.thm-stat b.win { color: var(--thm-win); } .thm-stat b.lose { color: var(--thm-lose); }
+.thm-kalib { font-size: .82rem; opacity: .85; margin: 4px 0 10px; line-height: 1.5; }
+.thm-pazar { margin-bottom: 12px; font-size: .85rem; }
+.thm-pazar table { border-collapse: collapse; margin-top: 6px; }
+.thm-pazar th, .thm-pazar td { text-align: left; padding: 4px 14px 4px 0; }
+.thm-gunler { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 12px; }
+.thm-kuponlar { display: grid; gap: 12px; }
+.thm-coupon { border: 1px solid var(--thm-line); border-left: 4px solid var(--thm-line); border-radius: 14px; padding: 12px 14px; background: var(--surface, transparent); }
+.thm-coupon.won { border-left-color: var(--thm-win); } .thm-coupon.lost { border-left-color: var(--thm-lose); }
+.thm-coupon > header { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.thm-coupon h4 { margin: 0; font-size: 1rem; }
+.thm-chip { font-size: .72rem; padding: 3px 10px; border-radius: 999px; background: var(--thm-soft); }
+.thm-chip.won { background: color-mix(in srgb, var(--thm-win) 18%, transparent); color: var(--thm-win); }
+.thm-chip.lost { background: color-mix(in srgb, var(--thm-lose) 18%, transparent); color: var(--thm-lose); }
+.thm-picks { list-style: none; margin: 8px 0; padding: 0; }
+.thm-pick { display: grid; grid-template-columns: 46px minmax(0, 1fr) auto 52px 44px 18px; gap: 4px 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--thm-line); font-size: .88rem; }
+.thm-pick:first-child { border-top: 0; }
+.thm-pm { display: flex; flex-direction: column; min-width: 0; } .thm-pm small { opacity: .6; }
+.thm-pt, .thm-po, .thm-pp { font-family: "JetBrains Mono", monospace; }
+.thm-pp { opacity: .65; font-size: .78rem; }
+.thm-ps { font-weight: 600; }
+.thm-pr { font-weight: 700; } .thm-pick.won .thm-pr { color: var(--thm-win); } .thm-pick.lost .thm-pr { color: var(--thm-lose); }
+.thm-why, .thm-risk { grid-column: 2 / -1; margin: 0; font-size: .8rem; opacity: .8; line-height: 1.4; }
+.thm-risk { opacity: .65; font-style: italic; }
+.thm-coupon > footer { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: .8rem; padding-top: 8px; border-top: 1px solid var(--thm-line); }
+.thm-kaynak { opacity: .6; margin-left: auto; }
+
+@media (max-width: 640px) {
+  .thm-row { grid-template-columns: 44px minmax(0, 1fr) 30px; }
+  .thm-odds { grid-column: 1 / -1; padding-left: 54px; }
+  .thm-more { grid-row: 1; grid-column: 3; }
+  .thm-ek { padding-left: 54px; }
+  .thm-pick { grid-template-columns: 40px minmax(0, 1fr) 46px 18px; }
+  .thm-ps { grid-column: 2; } .thm-pp { display: none; }
+  .thm-kaynak { margin-left: 0; width: 100%; }
+}
