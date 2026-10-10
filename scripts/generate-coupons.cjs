@@ -14,8 +14,8 @@ const M = require("./kupon-motoru.cjs");
 const MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-5-5";
 const MAX_BULTEN_YAS_SAAT = 6; // bülten bundan eskiyse kupon üretilmez (eski oranlar)
 
-async function claudeKuponlari(adaylar, anahtar, fetchImpl = fetch) {
-  const { sistem, kullanici } = M.claudeIstemi(adaylar);
+async function claudeKuponlari(adaylar, anahtar, fetchImpl = fetch, notlar = "") {
+  const { sistem, kullanici } = M.claudeIstemi(adaylar, notlar);
   const res = await fetchImpl("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "x-api-key": anahtar, "anthropic-version": "2023-06-01", "content-type": "application/json" },
@@ -81,8 +81,15 @@ async function main() {
     const lm = await db.collection("liveMatches").doc(bugun).get();
     const api = lm.exists ? (lm.data().matches || []) : [];
     const eslesen = M.esle(bulten, api);
-    const adaylar = M.adaylariUret(bulten, eslesen, { simdiDk: M.dk(M.trHM(simdi)) });
-    console.log(`${bulten.length} maç, ${eslesen.size} tanesi API-Football ile eşleşti, ${adaylar.length} aday seçim.`);
+    // Bet365 oranları liveMatches ile aynı anda çekildi; ne kadar eski olduğunu öğren
+    let b365Yas = null;
+    if (lm.exists && lm.data().updatedAt && lm.data().updatedAt.toMillis) b365Yas = (Date.now() - lm.data().updatedAt.toMillis()) / 36e5;
+    const adaylar = M.adaylariUret(bulten, eslesen, { simdiDk: M.dk(M.trHM(simdi)), b365YasSaat: b365Yas });
+    const degerli = adaylar.filter((c) => c.deger != null).length;
+    console.log(`${bulten.length} maç, ${eslesen.size} tanesi API-Football ile eşleşti, ${adaylar.length} aday seçim, ${degerli} tanesinde Bet365 çapraz kontrolü (veri yaşı: ${b365Yas == null ? "?" : Math.round(b365Yas) + " saat"}).`);
+    const istemNotu = degerli
+      ? `Not: Bet365 oranları yaklaşık ${b365Yas == null ? "?" : Math.round(b365Yas)} saat önce alındı; bu aradaki oran değişimi "deger" farkını yapay büyütmüş olabilir.`
+      : "";
     if (adaylar.length < 12) throw new Error(`Yeterli aday seçim yok (${adaylar.length}). Günün maçları çoğunlukla başlamış olabilir.`);
 
     // Claude'a en olası ~90 adayı ver (her maçtan en iyi 3)
@@ -95,7 +102,7 @@ async function main() {
 
     let taslak = null, claudeNot = "Claude kullanılmadı (ANTHROPIC_API_KEY yok).";
     if (process.env.ANTHROPIC_API_KEY) {
-      try { taslak = await claudeKuponlari(kisaListe, process.env.ANTHROPIC_API_KEY); claudeNot = "Claude yanıt verdi."; }
+      try { taslak = await claudeKuponlari(kisaListe, process.env.ANTHROPIC_API_KEY, fetch, istemNotu); claudeNot = "Claude yanıt verdi."; }
       catch (e) { claudeNot = "Claude çağrısı başarısız, kural tabanlı kuponlar kullanıldı: " + e.message; console.error(claudeNot); }
     }
     // Doğrulama için tüm adaylar geçerli (Claude sadece kısa listeden seçmeli, ama kural katmanı hepsini kullanabilir)

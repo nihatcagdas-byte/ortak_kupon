@@ -94,6 +94,7 @@ const virgul = (x) => String(x).replace(".", ",");
 function adaylariUret(nesine, eslesen, secenek = {}) {
   const simdiDk = secenek.simdiDk != null ? secenek.simdiDk : 0;
   const minOran = secenek.minOran || 1.12, maxOran = secenek.maxOran || 4.0;
+  const b365Gecerli = secenek.b365YasSaat == null || secenek.b365YasSaat <= 24;
   const liste = [];
   nesine.forEach((m) => {
     if (!m.m || !m.m.ms || m.m.ms.length !== 3) return;
@@ -101,30 +102,41 @@ function adaylariUret(nesine, eslesen, secenek = {}) {
     const api = eslesen && eslesen.get(m.id);
     const st = api && api.stats;
     const g = apiGorusu(st);
-    const q = marjsiz(m.m.ms);
+    const qN = marjsiz(m.m.ms);                       // Nesine'nin marjsız olasılığı
+    // Bet365 (API-Football /odds) ikinci piyasa görüşü; sadece MS var. Çok eskiyse kullanılmaz.
+    let qB = null;
+    const bo = api && api.odds;
+    if (bo && b365Gecerli) {
+      const v = [sayi(bo.home), sayi(bo.draw), sayi(bo.away)];
+      if (v.every((x) => x !== null && x > 1)) qB = marjsiz(v);
+    }
+    const q = qB ? qN.map((x, i) => (x + qB[i]) / 2) : qN;   // piyasa ortalaması
     const ek = st ? {
       form: st.form || null, advice: st.advice || null,
       winPercent: st.winPercent || null,
       sakat: st.injuries ? { h: (st.injuries.home || []).length, a: (st.injuries.away || []).length } : null
     } : null;
 
-    const ekle = (market, pick, pickLabel, odd, pM, pA) => {
+    // pB: Bet365'in bu seçim için marjsız olasılığı (yoksa null). deger = Nesine oranı x piyasa ortalaması.
+    const ekle = (market, pick, pickLabel, odd, pM, pA, pB = null) => {
       if (!(odd >= minOran && odd <= maxOran)) return;
       const p = pA != null ? 0.5 * pM + 0.5 * pA : pM;
       liste.push({
         id: `${m.id}|${pick}`, matchId: m.id, t: m.t, h: m.h, a: m.a, lg: m.lg, mbs: m.mbs || 1,
-        market, pick, pickLabel, odd, pM: yuvarla(pM), pA: pA != null ? yuvarla(pA) : null, p: yuvarla(p),
+        market, pick, pickLabel, odd, pM: yuvarla(pM), pA: pA != null ? yuvarla(pA) : null, pB: pB != null ? yuvarla(pB) : null,
+        p: yuvarla(p), deger: pB != null ? yuvarla(odd * pM) : null,
         uyum: pA != null && Math.abs(pM - pA) <= 0.12, ek
       });
     };
 
     // MS
-    ["1", "X", "2"].forEach((k, i) => ekle("MS", k, "MS " + k, m.m.ms[i], q[i], g && g.win ? g.win[i] : null));
+    ["1", "X", "2"].forEach((k, i) => ekle("MS", k, "MS " + k, m.m.ms[i], q[i], g && g.win ? g.win[i] : null, qB ? qB[i] : null));
     // Çifte şans (piyasa olasılığı MS'den türetilir)
     if (m.m.cs && m.m.cs.length === 3) {
       const csP = [q[0] + q[1], q[0] + q[2], q[1] + q[2]];
       const csA = g && g.win ? [g.win[0] + g.win[1], g.win[0] + g.win[2], g.win[1] + g.win[2]] : [null, null, null];
-      ["1x", "12", "x2"].forEach((k, i) => ekle("Çifte Şans", "cs" + k, "ÇŞ " + k.toUpperCase(), m.m.cs[i], csP[i], csA[i]));
+      const csB = qB ? [qB[0] + qB[1], qB[0] + qB[2], qB[1] + qB[2]] : [null, null, null];
+      ["1x", "12", "x2"].forEach((k, i) => ekle("Çifte Şans", "cs" + k, "ÇŞ " + k.toUpperCase(), m.m.cs[i], csP[i], csA[i], csB[i]));
     }
     // KG
     if (m.m.kg && m.m.kg.length === 2) {
@@ -158,7 +170,7 @@ const SLOTLAR = [
 ];
 
 const carp = (picks) => picks.reduce((a, c) => a * c.odd, 1);
-const skorHesap = (c) => Math.log(Math.max(c.p, 1e-6)) + (c.uyum ? 0.05 : 0);
+const skorHesap = (c) => Math.log(Math.max(c.p, 1e-6)) + (c.uyum ? 0.05 : 0) + (c.deger ? Math.log(c.deger) : 0);
 
 // Havuzdan, tek maçtan en fazla bir seçim olacak şekilde, hedef oran aralığındaki en olası kombinasyonu bulur
 function enIyiKombine(havuz, cfg, haric = new Set()) {
@@ -196,7 +208,8 @@ function enIyiKombine(havuz, cfg, haric = new Set()) {
 const sablonGerekce = (c) => {
   const a = c.pA != null ? `API-Football ${Math.round(c.pA * 100)}%, ` : "";
   return `Piyasa olasılığı %${Math.round(c.pM * 100)}, ${a}birleşik tahmin %${Math.round(c.p * 100)}.` +
-    (c.pA == null ? " Bu maç için ikinci kaynak yok." : c.uyum ? " İki kaynak aynı yönde." : " İki kaynak arasında fark var.");
+    (c.pA == null ? " Bu maç için ikinci kaynak yok." : c.uyum ? " İki kaynak aynı yönde." : " İki kaynak arasında fark var.") +
+    (c.deger ? ` Nesine fiyatı Bet365 ile ortalamaya göre ${c.deger >= 1 ? "cömert" : "dar"} (değer ${c.deger.toFixed(2)}).` : "");
 };
 const sablonRisk = (c) => `Tek seçimin tutma olasılığı yaklaşık %${Math.round(c.p * 100)}; kuponda diğer seçimlerle çarpılır.`;
 
@@ -241,23 +254,25 @@ function kuponDogrula(taslak, byId) {
 function pickBelgesi(c) {
   return {
     matchId: c.matchId, t: c.t, h: c.h, a: c.a, lg: c.lg, market: c.market, pick: c.pick, pickLabel: c.pickLabel,
-    odd: c.odd, prob: c.p, probMarket: c.pM, probApi: c.pA, reason: c.reason || "", risk: c.risk || "", result: null
+    odd: c.odd, prob: c.p, probMarket: c.pM, probApi: c.pA, probBet365: c.pB, deger: c.deger, reason: c.reason || "", risk: c.risk || "", result: null
   };
 }
 
 /* ---------------- Claude istemi ---------------- */
-function claudeIstemi(adaylar) {
+function claudeIstemi(adaylar, notlar = "") {
   const satirlar = adaylar.map((c) => JSON.stringify({
     id: c.id, saat: c.t, lig: c.lg, mac: `${c.h} - ${c.a}`, secim: c.pickLabel, oran: c.odd,
-    pPiyasa: c.pM, pAPI: c.pA, p: c.p, mbs: c.mbs,
+    pPiyasa: c.pM, pAPI: c.pA, p: c.p, deger: c.deger == null ? undefined : c.deger, mbs: c.mbs,
     form: c.ek && c.ek.form ? `${c.ek.form.home || "-"} / ${c.ek.form.away || "-"}` : undefined,
     sakat: c.ek && c.ek.sakat ? `${c.ek.sakat.h}/${c.ek.sakat.a}` : undefined
   })).join("\n");
   const sistem = "Sen bir futbol kuponu analistisin. Sadece sana verilen aday listesinden seçim yaparsın. " +
     "Listedeki sayıların dışında haber, sakatlık, rotasyon, takım bilgisi UYDURMAZSIN. Gerekçeler Türkçe, kısa ve sayılara dayalı olur. " +
     "Kazanç garantisi vermezsin; riski dürüstçe yazarsın. Çıktın yalnızca geçerli JSON olur.";
-  const kullanici = `Bugünün aday seçimleri (her satır bir seçim; p = piyasa ve API-Football olasılığının birleşimi, pAPI boşsa ikinci kaynak yok):
+  const kullanici = `Bugünün aday seçimleri (her satır bir seçim; p = piyasa ve API-Football olasılığının birleşimi, pAPI boşsa ikinci kaynak yok;
+deger = Nesine oranı x (Nesine+Bet365) ortalama olasılığı, sadece MS ve çifte şansta var: 1'in üstü Nesine fiyatının ortalamaya göre cömert olduğunu gösterir, kârlılık garantisi değildir):
 ${satirlar}
+${notlar}
 
 Tam 5 kupon kur:
 1) "Güvenli": 2 seçim, toplam oran 1,60-2,40, her seçim oranı en fazla 1,60.
@@ -270,6 +285,7 @@ Kurallar:
 - Bir kuponda aynı maçtan en fazla bir seçim.
 - Her seçimin mbs değeri, kuponun seçim sayısından büyük olamaz (örn. mbs 3 olan maç en az 3 seçimli kuponda olur).
 - Yüksek p'li, iki kaynağın (pPiyasa ve pAPI) uyumlu olduğu seçimleri tercih et; iki kaynak çok ayrışıyorsa nedenini riskte belirt.
+- Olasılıkları benzer iki seçim arasında "deger" değeri yüksek olanı tercih et (varsa).
 - Her seçim için "reason" (en fazla 2 kısa cümle, verilen sayılara dayalı) ve "risk" (1 cümle) yaz.
 - Sadece aday listesindeki "id" değerlerini kullan.
 
