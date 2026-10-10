@@ -1,25 +1,39 @@
-name: Nesine bülteni
+name: Nesine bülteni ve AI kuponları
 
 on:
   schedule:
     - cron: "0 5 * * *"   # 08:00 Türkiye saati (GitHub bazen 5-30 dk geciktirebilir)
   workflow_dispatch:      # elle de çalıştırılabilir
+    inputs:
+      force:
+        description: "Bugünün AI kuponlarını yeniden üret (zaten varsa üzerine yazar)"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
 jobs:
-  fetch:
+  gunluk:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
       - name: Bağımlılıkları kur
         run: npm install --prefix scripts --no-audit --no-fund
-      - name: Bülteni çek ve Firestore'a yaz
+
+      - name: Nesine bültenini çek ve Firestore'a yaz
         run: node scripts/fetch-nesine.cjs
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+      # Bülten alınamadıysa bu adım çalışmaz (eski oranlarla kupon üretilmez)
+      - name: AI kuponlarını üret
+        run: node scripts/generate-coupons.cjs
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          FORCE: ${{ inputs.force && '1' || '' }}

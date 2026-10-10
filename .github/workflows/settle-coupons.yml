@@ -1,0 +1,26 @@
+name: AI kuponlarını sonuçlandır
+
+on:
+  schedule:
+    - cron: "30 21 * * *"   # 00:30 Türkiye saati
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sonuclandir:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Bağımlılıkları kur
+        run: npm install --prefix scripts --no-audit --no-fund
+      - name: Bitmiş maçlarla kuponları sonuçlandır
+        run: node scripts/settle-coupons.cjs
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          API_FOOTBALL_KEY: ${{ secrets.API_FOOTBALL_KEY }}
