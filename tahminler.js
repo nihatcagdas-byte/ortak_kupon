@@ -311,7 +311,7 @@ function istatistik(liste) {
     const d = kuponDurumu(k);
     if (d === "won" || d === "lost") {
       s.sonuclanan++;
-      if (d === "won") { s.tutan++; s.kar += SANAL_BAHIS * ((k.totalOdd || 1) - 1); } else s.kar -= SANAL_BAHIS;
+      if (d === "won") { s.tutan++; s.kar += SANAL_BAHIS * ((k.settledOdd || k.totalOdd || 1) - 1); } else s.kar -= SANAL_BAHIS;
     }
     (k.picks || []).forEach(p => {
       if (p.result !== "won" && p.result !== "lost") return;
@@ -348,7 +348,7 @@ function kuponKarti(k) {
     <footer>
       <span>Toplam oran <b>${fmtOdd(k.totalOdd)}</b></span>
       <span>Birleşik olasılık <b>${yuzde(birlesik)}</b></span>
-      <span>Sanal ${SANAL_BAHIS}₺ → <b>${fmtOdd((k.totalOdd || 0) * SANAL_BAHIS).replace(".00", "")}₺</b></span>
+      <span>Sanal ${SANAL_BAHIS}₺ → <b>${fmtOdd(((d === "won" && k.settledOdd) || k.totalOdd || 0) * SANAL_BAHIS).replace(".00", "")}₺</b></span>
       <span class="thm-kaynak">Oranlar: ${esc(k.oddsSource || "Nesine")} · ${fmtTime(k.oddsAt)}</span>
     </footer>
   </article>`;
