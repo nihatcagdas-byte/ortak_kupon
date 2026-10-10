@@ -1,5 +1,5 @@
 /* Tahminler sekmesi. Mevcut tema değişkenlerini kullanır, yoksa güvenli varsayılanlar. */
-.view-tahminler { --thm-line: color-mix(in srgb, currentColor 14%, transparent); --thm-soft: color-mix(in srgb, currentColor 6%, transparent); --thm-win: var(--win, #12A26A); --thm-lose: var(--lose, #E23A63); --thm-blue: var(--blue, #1878F2); }
+.view-tahminler, .view-matches { --thm-line: color-mix(in srgb, currentColor 14%, transparent); --thm-soft: color-mix(in srgb, currentColor 6%, transparent); --thm-win: var(--win, #12A26A); --thm-lose: var(--lose, #E23A63); --thm-blue: var(--blue, #1878F2); }
 .view-tahminler .thm-head { margin-bottom: 8px; }
 .thm-section { margin: 22px 0 34px; }
 .thm-h { font-size: 1.15rem; margin: 0 0 10px; }
@@ -17,7 +17,7 @@
 /* maç listesi */
 .thm-lig { margin-bottom: 14px; border: 1px solid var(--thm-line); border-radius: 14px; overflow: hidden; background: var(--surface, transparent); }
 .thm-lig > h4 { margin: 0; padding: 8px 12px; font-size: .78rem; letter-spacing: .04em; text-transform: uppercase; background: var(--thm-soft); }
-.thm-row { display: grid; grid-template-columns: 52px minmax(0, 1.3fr) minmax(0, 2fr) 34px; gap: 8px 10px; align-items: center; padding: 9px 12px; border-top: 1px solid var(--thm-line); }
+.thm-row { display: grid; grid-template-columns: 52px minmax(0, 1.3fr) minmax(0, 2fr) auto; gap: 8px 10px; align-items: center; padding: 9px 12px; border-top: 1px solid var(--thm-line); }
 .thm-lig > h4 + .thm-row { border-top: 0; }
 .thm-time { font-family: "JetBrains Mono", monospace; font-size: .85rem; opacity: .8; }
 .thm-teams { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
@@ -31,6 +31,10 @@
 .thm-o { display: inline-flex; flex-direction: column; align-items: center; min-width: 40px; padding: 3px 5px; border-radius: 8px; background: var(--thm-soft); }
 .thm-o i { font-style: normal; font-size: .62rem; opacity: .6; }
 .thm-o b { font-family: "JetBrains Mono", monospace; font-size: .82rem; }
+.thm-act { display: flex; gap: 6px; align-items: center; justify-content: flex-end; }
+.thm-time.canli { color: var(--thm-lose); font-weight: 700; }
+.thm-score { font-family: "JetBrains Mono", monospace; font-weight: 700; padding: 3px 8px; border-radius: 8px; background: var(--thm-soft); align-self: center; }
+.thm-statwrap { grid-column: 1 / -1; margin-top: 4px; }
 .thm-more { width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--thm-line); background: transparent; color: inherit; cursor: pointer; font-size: 1rem; line-height: 1; }
 .thm-more:hover { border-color: var(--thm-blue); color: var(--thm-blue); }
 
@@ -67,9 +71,9 @@
 .thm-kaynak { opacity: .6; margin-left: auto; }
 
 @media (max-width: 640px) {
-  .thm-row { grid-template-columns: 44px minmax(0, 1fr) 30px; }
+  .thm-row { grid-template-columns: 44px minmax(0, 1fr) auto; }
   .thm-odds { grid-column: 1 / -1; padding-left: 54px; }
-  .thm-more { grid-row: 1; grid-column: 3; }
+  .thm-act { grid-row: 1; grid-column: 3; }
   .thm-ek { padding-left: 54px; }
   .thm-pick { grid-template-columns: 40px minmax(0, 1fr) 46px 18px; }
   .thm-ps { grid-column: 2; } .thm-pp { display: none; }
