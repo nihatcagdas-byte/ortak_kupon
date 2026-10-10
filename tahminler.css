@@ -79,3 +79,4 @@
   .thm-ps { grid-column: 2; } .thm-pp { display: none; }
   .thm-kaynak { margin-left: 0; width: 100%; }
 }
+.thm-deger { font-family: "JetBrains Mono", monospace; font-size: .72rem; opacity: .85; }

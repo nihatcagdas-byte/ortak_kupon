@@ -331,7 +331,7 @@ function kuponKarti(k) {
     const simge = p.result === "won" ? "✓" : p.result === "lost" ? "✗" : p.result === "void" ? "–" : "";
     return `<li class="thm-pick ${esc(p.result || "")}">
       <span class="thm-pt">${esc(p.t || "")}</span>
-      <div class="thm-pm"><b>${esc(p.h)} – ${esc(p.a)}</b><small>${esc(p.lg || "")}</small></div>
+      <div class="thm-pm"><b>${esc(p.h)} – ${esc(p.a)}</b><small>${esc(p.lg || "")}${p.deger ? ` · <span class="thm-deger" title="Nesine oranı × (Nesine+Bet365) ortalama olasılığı. 1'in üstü: Nesine fiyatı ortalamaya göre cömert. Kâr garantisi değildir.">Değer ${Number(p.deger).toFixed(2)}</span>` : ""}</small></div>
       <span class="thm-ps">${esc(p.pickLabel || p.pick || "")}</span>
       <span class="thm-po">${fmtOdd(p.odd)}</span>
       <span class="thm-pp" title="AI'nın tahmin ettiği olasılık">${yuzde(p.prob)}</span>
