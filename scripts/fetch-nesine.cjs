@@ -73,8 +73,15 @@ async function main() {
   const simdi = new Date().toISOString();
 
   try {
-    const gunler = cevir(await indir());
     const bugun = trTarih(Date.now());
+    if (process.env.SKIP_IF_FRESH === "1") {
+      const var_ = await col.doc(bugun).get();
+      if (var_.exists && Date.now() - new Date(var_.data().updatedAt).getTime() < 12 * 36e5) {
+        console.log("Bugünün bülteni zaten taze, Nesine'ye tekrar istek atılmadı.");
+        return;
+      }
+    }
+    const gunler = cevir(await indir());
     const secilen = Object.keys(gunler).filter((d) => d >= bugun).sort().slice(0, GUN_SAYISI);
     if (!secilen.length) throw new Error("Bültende bugün veya sonrası için futbol maçı bulunamadı.");
 
