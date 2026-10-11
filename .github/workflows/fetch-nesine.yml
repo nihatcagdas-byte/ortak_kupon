@@ -3,6 +3,7 @@ name: Nesine bülteni ve AI kuponları
 on:
   schedule:
     - cron: "0 5 * * *"   # 08:00 Türkiye saati (GitHub bazen 5-30 dk geciktirebilir)
+    - cron: "30 6 * * *"  # 09:30 yedek: sabah çalışma atlandıysa/başarısızsa tamamlar, iş bittiyse hiçbir şey yapmaz
   workflow_dispatch:      # elle de çalıştırılabilir
     inputs:
       force:
@@ -29,9 +30,11 @@ jobs:
         run: node scripts/fetch-nesine.cjs
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          SKIP_IF_FRESH: ${{ github.event_name == 'schedule' && '1' || '' }}
 
-      # Bülten alınamadıysa bu adım çalışmaz (eski oranlarla kupon üretilmez)
+      # Bülten yoksa/eskiyse bu adım hata yazar ve nedeni sayfada görünür (eski oranlarla kupon üretilmez)
       - name: AI kuponlarını üret
+        if: always()
         run: node scripts/generate-coupons.cjs
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
