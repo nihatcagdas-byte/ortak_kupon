@@ -109,6 +109,7 @@ const bulten = {};        // tarih -> { maclar, guncelleme, adet }
 const apiGun = {};        // tarih -> liveMatches maçları
 let durum = null;         // bulten/status
 let aiKuponlar = [];
+let aiDurum = null;       // bulten/aiStatus
 let tahminRoot = null;
 let maclar = null;        // { view, orig, note, liste, durumEl }
 let basladi = false;
@@ -325,6 +326,30 @@ function istatistik(liste) {
   return s;
 }
 
+const GRUPLAR = [
+  { id: "guvenli", ad: "Güvenli", not: "Kupon 1 + Günün seçimi" },
+  { id: "dengeli", ad: "Dengeli", not: "Kupon 2 + 3" },
+  { id: "riskli", ad: "Riskli", not: "Kupon 5" }
+];
+function grupOf(k) {
+  const t = k.tur || ({ 1: "guvenli", 2: "dengeli", 3: "dengeli", 4: "tekli", 5: "riskli" })[k.slot];
+  return t === "tekli" ? "guvenli" : (t || "dengeli");
+}
+function grupKarti(g, liste) {
+  const s = istatistik(liste.filter(k => grupOf(k) === g.id));
+  const gercek = s.secim ? s.secimTutan / s.secim : null;
+  const beklenen = s.olasilikAdet ? s.olasilikToplam / s.olasilikAdet : null;
+  return `<div class="thm-grup">
+    <h5>${g.ad} <small>${g.not}</small></h5>
+    <dl>
+      <div><dt>Sonuçlanan</dt><dd>${s.sonuclanan} / ${s.toplam}</dd></div>
+      <div><dt>Tutan kupon</dt><dd>${s.tutan}${s.sonuclanan ? " (" + yuzde(s.tutan / s.sonuclanan) + ")" : ""}</dd></div>
+      <div><dt>Seçim isabeti</dt><dd>${yuzde(gercek)} <small>(beklenen ${yuzde(beklenen)})</small></dd></div>
+      <div><dt>Sanal kâr/zarar</dt><dd class="${s.kar >= 0 ? "win" : "lose"}">${s.kar >= 0 ? "+" : ""}${Math.round(s.kar)}₺</dd></div>
+    </dl>
+  </div>`;
+}
+
 function kuponKarti(k) {
   const d = kuponDurumu(k);
   const picks = (k.picks || []).map(p => {
@@ -354,13 +379,22 @@ function kuponKarti(k) {
   </article>`;
 }
 
+function aiDurumHtml() {
+  const bugun = dayKey(0);
+  const bugunVar = aiKuponlar.some(k => k.dateKey === bugun);
+  if (bugunVar || !aiDurum) return "";
+  const hata = aiDurum.ok === false;
+  return `<div class="thm-durum uyari"><b>Bugünün kuponları henüz yok.</b> ${hata ? "Son çalışma hatası: " + esc(aiDurum.message || "") : "Son çalışma: " + esc(aiDurum.message || "") }
+    <br><small>Son deneme: ${fmtTime(aiDurum.lastRun)}. Yedek çalışma 09:30'da otomatik tekrar dener.</small></div>`;
+}
+
 function renderAI() {
   const kutu = tahminRoot && tahminRoot.querySelector("#thm-ai");
   if (!kutu) return;
   if (!aiKuponlar.length) {
-    kutu.innerHTML = `<div class="thm-bos-kutu">
+    kutu.innerHTML = aiDurumHtml() + `<div class="thm-bos-kutu">
       <b>Henüz AI kuponu yok.</b>
-      <p>Tahmin yöntemi belirlendikten sonra her sabah 5 kupon burada görünecek.</p>
+      <p>Her sabah 08:00'den sonra 5 kupon burada görünür.</p>
     </div>`;
     return;
   }
@@ -374,6 +408,7 @@ function renderAI() {
     `<tr><td>${esc(pz)}</td><td>${v.n}</td><td>${yuzde(v.t / v.n)}</td></tr>`).join("");
 
   kutu.innerHTML = `
+    ${aiDurumHtml()}
     <div class="thm-stat">
       <div><i>Kupon</i><b>${s.toplam}</b></div>
       <div><i>Sonuçlanan</i><b>${s.sonuclanan}</b></div>
@@ -382,6 +417,7 @@ function renderAI() {
       <div><i>Seçim isabeti</i><b>${yuzde(gercek)}</b></div>
       <div><i>Sanal kâr/zarar</i><b class="${s.kar >= 0 ? "win" : "lose"}">${s.kar >= 0 ? "+" : ""}${Math.round(s.kar)}₺</b></div>
     </div>
+    <div class="thm-gruplar">${GRUPLAR.map(g => grupKarti(g, aiKuponlar)).join("")}</div>
     <p class="thm-kalib">Kalibrasyon: AI'nın verdiği ortalama olasılık <b>${yuzde(beklenen)}</b>, gerçekleşen <b>${yuzde(gercek)}</b>.
       ${s.secim < 30 ? "Örnek sayısı az (" + s.secim + " seçim), erken yorum yapmayın." : ""}
       Sanal kâr/zarar her kupona ${SANAL_BAHIS}₺ sabit bahis varsayılarak hesaplanır.</p>
@@ -414,6 +450,8 @@ function baslat() {
     });
     onSnapshot(doc(db, "bulten", "status"), snap => { durum = snap.exists() ? snap.data() : null; renderMaclar(); },
       err => console.error("bulten/status okunamadı:", err));
+    onSnapshot(doc(db, "bulten", "aiStatus"), snap => { aiDurum = snap.exists() ? snap.data() : null; renderAI(); },
+      err => console.error("bulten/aiStatus okunamadı:", err));
     onSnapshot(query(collection(db, "aiCoupons"), orderBy("dateKey", "desc"), limit(200)), snap => {
       aiKuponlar = snap.docs.map(d => ({ id: d.id, ...d.data() }))
         .sort((a, b) => (b.dateKey || "").localeCompare(a.dateKey || "") || (a.slot || 0) - (b.slot || 0));

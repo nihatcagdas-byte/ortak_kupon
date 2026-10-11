@@ -80,3 +80,11 @@
   .thm-kaynak { margin-left: 0; width: 100%; }
 }
 .thm-deger { font-family: "JetBrains Mono", monospace; font-size: .72rem; opacity: .85; }
+
+.thm-gruplar { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; margin: 0 0 10px; }
+.thm-grup { padding: 10px 12px; border-radius: 12px; background: var(--thm-soft); }
+.thm-grup h5 { margin: 0 0 6px; font-size: .95rem; } .thm-grup h5 small { font-weight: 400; opacity: .6; font-size: .72rem; }
+.thm-grup dl { margin: 0; display: grid; gap: 4px; }
+.thm-grup dl > div { display: flex; justify-content: space-between; gap: 8px; font-size: .82rem; }
+.thm-grup dt { opacity: .65; } .thm-grup dd { margin: 0; font-family: "JetBrains Mono", monospace; text-align: right; }
+.thm-grup dd.win { color: var(--thm-win); } .thm-grup dd.lose { color: var(--thm-lose); }
