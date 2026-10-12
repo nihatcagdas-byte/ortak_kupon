@@ -1218,14 +1218,20 @@ function renderDebtAndShare() {
   const historyEl = document.getElementById("payment-history");
   if (!debtList || !shareList) return;
 
-  const debtByUser = computeDebts();
   const N = USERS.length;
-  const totalDebt = USERS.reduce((sum, u) => sum + (debtByUser[u] || 0), 0);
+  const rawDebts = computeRawDebts();      // kupon kayıplarından doğan toplam borç
+  const debtByUser = computeDebts();       // kalan (ödenmemiş) borç
+  const totalRaw = USERS.reduce((s, u) => s + (rawDebts[u] || 0), 0);
   const paidOut = {};
   USERS.forEach(u => { paidOut[u] = paymentsSum("share_payout", u); });
-  const totalPaidOut = USERS.reduce((sum, u) => sum + paidOut[u], 0);
-  // Brüt toplam: kasada kalan + bugüne kadar kişilere ödenenler
-  const grossTotal = poolBalance + totalPaidOut;
+  const totalPaidOut = USERS.reduce((s, u) => s + paidOut[u], 0);
+  // Ödenen borçlar kasaya girer ama kimsenin payına ayrıca eklenmez (borç zaten oluştuğu anda
+  // diğer kişilerin payına yazılmıştı). Bu yüzden eşit pay hesabında kasadan düşülür.
+  const appliedPay = {};
+  USERS.forEach(u => { appliedPay[u] = Math.min(paymentsSum("debt_payment", u), rawDebts[u] || 0); });
+  const totalAppliedPay = USERS.reduce((s, u) => s + appliedPay[u], 0);
+  // Eşit paylaşılacak para: kasada kalan + kişilere ödenmiş paylar - ödenen borçlar
+  const grossTotal = poolBalance + totalPaidOut - totalAppliedPay;
   const baseShare = N > 0 ? grossTotal / N : 0;
 
   debtList.innerHTML = "";
@@ -1245,13 +1251,16 @@ function renderDebtAndShare() {
   });
 
   shareList.innerHTML = "";
+  const calcLines = [];
   USERS.forEach(u => {
-    const debt = debtByUser[u] || 0;
-    const othersDebtSum = totalDebt - debt;
-    const fair = N > 1
-      ? baseShare - debt + (othersDebtSum / (N - 1))
-      : baseShare - debt;
+    const debt = debtByUser[u] || 0;                                   // kendi kalan borcu
+    const credit = N > 1 ? (totalRaw - (rawDebts[u] || 0)) / (N - 1) : 0; // diğerlerinin borcundan gelen
+    const fair = baseShare - debt + credit;
     const share = fair - paidOut[u];
+    calcLines.push(
+      `<li><strong>${u}:</strong> ${baseShare.toFixed(0)} (eşit pay) − ${debt.toFixed(0)} (kendi borcu) + ${credit.toFixed(0)} (diğerlerinin borcundan)` +
+      `${paidOut[u] > 0 ? ` − ${paidOut[u].toFixed(0)} (daha önce ödenen pay)` : ""} = <strong>${share.toFixed(0)}₺</strong></li>`
+    );
     const row = document.createElement("div");
     row.className = "simple-row";
     row.innerHTML = `
@@ -1272,12 +1281,24 @@ function renderDebtAndShare() {
   `;
   shareList.appendChild(totalRow);
 
-  if (totalDebt > 0) {
-    const note = document.createElement("p");
-    note.className = "debt-note";
-    note.textContent = "Borçlu kişinin payından borcu düşülüp, kalan diğer kişilere eşit bölüştürülmüştür. Daha önce ödenen paylar düşülmüştür.";
-    shareList.appendChild(note);
-  }
+  const note = document.createElement("div");
+  note.className = "debt-note";
+  note.innerHTML = `
+    <details>
+      <summary><strong>Bu paylar nasıl hesaplanıyor?</strong></summary>
+      <ol>
+        <li><strong>Eşit pay:</strong> Kasadaki para herkese eşit bölünür. Daha önce kişilere ödenen paylar toplama geri eklenir, borç ödemeleri ise çıkarılır (nedeni 4. maddede).</li>
+        <li><strong>Borç:</strong> Havuzdan oynanan bir kupon tutmayınca, tutmayan kişi kazananların yatırdığı tutarı öder. Bu borç, o kişinin payından düşer.</li>
+        <li><strong>Diğerlerinin payı:</strong> Düşen borç, borçlu dışındaki kişilere eşit bölünerek payına eklenir. Borç oluştuğu anda yazılır, ödenmesi beklenmez.</li>
+        <li><strong>Borç ödenince:</strong> Para kasaya girer ama kimsenin payına ayrıca eklenmez, çünkü diğer kişilere zaten yazılmıştı. Sadece ödeyen kişinin borç kesintisi kalkar. Böylece ödeme yapan kişinin payı tam ödediği kadar artar, diğerlerinin payı değişmez.</li>
+        <li><strong>Pay ödenince:</strong> Kasadan çıkan para o kişinin payından düşülür.</li>
+      </ol>
+      <p><strong>Formül:</strong> Pay = eşit pay − kendi borcu + (diğer kişilerin toplam borcu ÷ ${Math.max(N - 1, 1)}) − daha önce ödenen pay</p>
+      <p><strong>Şu anki hesap (kasa ${poolBalance.toFixed(0)}₺${totalAppliedPay > 0 ? `, ödenen borç ${totalAppliedPay.toFixed(0)}₺ eşit paydan çıkarıldı` : ""}):</strong></p>
+      <ul>${calcLines.join("")}</ul>
+    </details>
+  `;
+  shareList.appendChild(note);
 
   document.querySelectorAll(".pay-btn").forEach(btn => {
     btn.addEventListener("click", () => recordPayment(btn.dataset.type, btn.dataset.user, Number(btn.dataset.amount)));
