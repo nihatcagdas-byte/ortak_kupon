@@ -1,0 +1,38 @@
+name: Maç analizi (sohbet)
+
+on:
+  workflow_dispatch:
+    inputs:
+      id:
+        description: "analizler belge kimliği (boşsa bekleyen tüm sorular işlenir)"
+        required: false
+        default: ""
+  schedule:
+    - cron: "17 */3 * * *"   # yedek: anahtar girilmeden sorulan/başlatılamayan sorular için (bekleyen yoksa saniyeler içinde biter)
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mac-analiz
+  cancel-in-progress: false
+
+jobs:
+  analiz:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Bağımlılıkları kur
+        run: npm install --prefix scripts --no-audit --no-fund
+      - name: Bekleyen maç analizlerini işle
+        run: node scripts/mac-analiz.cjs
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          API_FOOTBALL_KEY: ${{ secrets.API_FOOTBALL_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          ANALIZ_ID: ${{ inputs.id }}
