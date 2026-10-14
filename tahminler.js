@@ -404,6 +404,7 @@ function chatNot(metin) {
 async function tetikle(id) {
   const tok = ghAnahtar();
   if (!tok) { chatNot("Soru kaydedildi. GitHub anahtarı girilmediği için analiz anında başlamaz; yedek çalışma en geç birkaç saat içinde işler. (Aşağıdaki ⚙ bölümünden anahtar ekleyebilirsin.)"); return; }
+  let bulunamadi = false;
   for (const ref of ["main", "master"]) {
     try {
       const res = await fetch(`https://api.github.com/repos/${GH_REPO}/actions/workflows/${GH_WORKFLOW}/dispatches`, {
@@ -413,10 +414,12 @@ async function tetikle(id) {
       });
       if (res.status === 204) { chatNot(""); return; }
       if (res.status === 401 || res.status === 403) { chatNot("GitHub anahtarı reddedildi (süresi dolmuş veya izin eksik). Soru kaydedildi; yedek çalışma işler."); return; }
-      if (res.status === 404) { chatNot("GitHub'da mac-analiz.yml bulunamadı veya anahtarın bu repoya erişimi yok. Soru kaydedildi."); return; }
+      if (res.status === 404) { bulunamadi = true; continue; } // dal adı farklı olabilir (main/master)
     } catch { chatNot("GitHub'a ulaşılamadı. Soru kaydedildi; yedek çalışma işler."); return; }
   }
-  chatNot("Analiz başlatılamadı (GitHub). Soru kaydedildi; yedek çalışma işler.");
+  chatNot(bulunamadi
+    ? "GitHub'da mac-analiz.yml bulunamadı veya anahtarın bu repoya erişimi yok. Soru kaydedildi; yedek çalışma işler."
+    : "Analiz başlatılamadı (GitHub). Soru kaydedildi; yedek çalışma işler.");
 }
 
 async function sor(metin, mod) {
