@@ -88,3 +88,37 @@
 .thm-grup dl > div { display: flex; justify-content: space-between; gap: 8px; font-size: .82rem; }
 .thm-grup dt { opacity: .65; } .thm-grup dd { margin: 0; font-family: "JetBrains Mono", monospace; text-align: right; }
 .thm-grup dd.win { color: var(--thm-win); } .thm-grup dd.lose { color: var(--thm-lose); }
+
+/* ===== Maç analizi sohbeti ===== */
+.thm-chat { margin-top: 28px; padding-top: 18px; border-top: 1px solid var(--thm-line); }
+.thm-chat-baslik { margin: 0 0 4px; font-size: 1.05rem; }
+.thm-chat-alt { margin: 0 0 12px; font-size: .84rem; opacity: .75; line-height: 1.45; }
+.thm-chat-list { display: flex; flex-direction: column; gap: 8px; max-height: 70vh; overflow-y: auto; padding: 4px 2px 8px; }
+.thm-chat-bos { opacity: .55; font-size: .85rem; margin: 0; }
+.thm-balon { max-width: 94%; padding: 10px 13px; border-radius: 16px; font-size: .88rem; line-height: 1.5; overflow-wrap: anywhere; }
+.thm-balon p { margin: 0 0 6px; } .thm-balon p:last-child { margin-bottom: 0; }
+.thm-ben { align-self: flex-end; background: var(--thm-blue); color: #fff; border-bottom-right-radius: 5px; }
+.thm-claude { align-self: flex-start; width: 100%; background: var(--thm-soft); border-bottom-left-radius: 5px; }
+.thm-an-baslik { margin: 0 0 6px; font-size: 1rem; }
+.thm-an-bolum { margin-top: 10px; } .thm-an-bolum h6, .thm-an-yorum h6 { margin: 0 0 3px; font-size: .72rem; letter-spacing: .05em; text-transform: uppercase; opacity: .6; }
+.thm-an-bolum ul { margin: 0; padding-left: 18px; } .thm-an-bolum li { margin-bottom: 2px; }
+.thm-an-tah { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; margin-bottom: 6px; }
+.thm-an-yorum { margin-top: 12px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--thm-line); background: var(--surface, transparent); }
+.thm-an-uyari { font-size: .78rem; opacity: .75; margin-top: 8px !important; }
+.thm-an-kaynak { font-size: .76rem; opacity: .85; margin-top: 8px !important; } .thm-an-kaynak a { color: var(--thm-blue); }
+.thm-an-alt { font-size: .7rem; opacity: .5; margin-top: 8px !important; }
+.thm-yaziyor span { animation: thm-nokta 1.2s infinite; } .thm-yaziyor span:nth-child(2) { animation-delay: .2s; } .thm-yaziyor span:nth-child(3) { animation-delay: .4s; }
+@keyframes thm-nokta { 0%, 60%, 100% { opacity: .2; } 30% { opacity: 1; } }
+.thm-chat-form { display: flex; gap: 8px; margin-top: 10px; }
+.thm-chat-btn { padding: 9px 16px; border-radius: 999px; border: 0; background: var(--thm-blue); color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+.thm-chat-btn:disabled { opacity: .5; cursor: default; } .thm-chat-btn.thm-ikincil { background: var(--thm-soft); color: inherit; }
+.thm-chat-not { font-size: .8rem; padding: 8px 12px; border-radius: 10px; background: var(--thm-soft); margin: 8px 0 0; line-height: 1.4; }
+.thm-gh { margin-top: 12px; font-size: .82rem; } .thm-gh summary { cursor: pointer; opacity: .7; } .thm-gh p { line-height: 1.45; }
+.thm-gh-satir { display: flex; gap: 8px; flex-wrap: wrap; } .thm-gh-satir .thm-ara { flex: 1 1 200px; }
+
+.thm-modlar { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.thm-mod { padding: 7px 12px; border-radius: 999px; border: 1px solid var(--thm-line); background: transparent; color: inherit; font: inherit; font-size: .82rem; cursor: pointer; }
+.thm-mod small { opacity: .6; margin-left: 2px; } .thm-mod.aktif { background: var(--thm-blue); border-color: var(--thm-blue); color: #fff; } .thm-mod.aktif small { opacity: .85; }
+.thm-mod-etiket { display: block; text-align: right; opacity: .7; font-size: .68rem; margin-top: 2px; }
+.thm-prompt { width: 100%; box-sizing: border-box; padding: 9px 11px; border-radius: 10px; border: 1px solid var(--thm-line); background: var(--surface, transparent); color: inherit; font: inherit; font-size: .78rem; line-height: 1.4; resize: vertical; }
+.thm-prompt-btn { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; } .thm-prompt-btn a { text-decoration: none; display: inline-block; }
