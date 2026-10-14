@@ -335,6 +335,7 @@ async function analizYaz(mac, veri, anahtar) {
       metin = await don(null);
     } else throw e;
   }
+  if (!metin.trim()) throw new Error("Claude boş cevap döndü. Tekrar dene.");
   let cevap = jsonCikar(metin);
   if (!cevap) cevap = { baslik: `${mac.ev} - ${mac.dep}`, yorum: metin.trim().slice(0, 4000), ham: true };
   cevap.kaynaklar = [...kaynaklar.entries()].slice(0, 8).map(([url, baslik]) => ({ url, baslik }));
@@ -347,7 +348,7 @@ const KULLANICI_METNI = (mac, veri, kisa) => `MAÇ: ${mac.ev} - ${mac.dep}${mac.
 
 async function geminiYaz(mac, veri, anahtar) {
   const govde = (araclar) => {
-    const g = { systemInstruction: { parts: [{ text: SISTEM }] }, contents: [{ role: "user", parts: [{ text: KULLANICI_METNI(mac, veri) }] }], generationConfig: { maxOutputTokens: 4500, temperature: 0.4 } };
+    const g = { systemInstruction: { parts: [{ text: SISTEM }] }, contents: [{ role: "user", parts: [{ text: KULLANICI_METNI(mac, veri) }] }], generationConfig: { maxOutputTokens: 16000, temperature: 0.4 } };
     if (araclar) g.tools = [{ google_search: {} }];
     return g;
   };
@@ -366,6 +367,10 @@ async function geminiYaz(mac, veri, anahtar) {
     } else throw e;
   }
   const metin = geminiMetin(j);
+  if (!metin.trim()) {
+    const c0 = (j.candidates || [])[0] || {};
+    throw new Error(`Gemini boş cevap döndü (bitiş nedeni: ${c0.finishReason || "bilinmiyor"}${j.promptFeedback && j.promptFeedback.blockReason ? ", engel: " + j.promptFeedback.blockReason : ""}). Tekrar dene.`);
+  }
   let cevap = jsonCikar(metin) || { baslik: `${mac.ev} - ${mac.dep}`, yorum: metin.trim().slice(0, 4000), ham: true };
   const kay = new Map();
   (((j.candidates || [])[0] || {}).groundingMetadata || {}).groundingChunks?.forEach((c) => { if (c.web && c.web.uri) kay.set(c.web.uri, c.web.title || c.web.uri); });
