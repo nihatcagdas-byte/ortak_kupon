@@ -90,28 +90,46 @@ function macAyristir(soru) {
 }
 
 let geminiModel = GEMINI_MODEL;
-// Model kaldırıldıysa (404) güncel bir "flash" modelini listeden bulur
-async function geminiModelBul(anahtar) {
+// Listedeki güncel "flash" modellerini (yeniden eskiye) döner
+async function geminiModelleri(anahtar) {
   const res = await ag("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200", { headers: { "x-goog-api-key": anahtar } });
-  if (!res.ok) return null;
+  if (!res.ok) return [];
   const j = await res.json();
   const adaylar = (j.models || [])
     .filter((m) => /flash/i.test(m.name) && !/(lite|image|tts|live|audio|thinking|exp|preview)/i.test(m.name) && (m.supportedGenerationMethods || []).includes("generateContent"))
     .map((m) => m.name.replace(/^models\//, ""));
   const surum = (n) => parseFloat((n.match(/gemini-(\d+(?:\.\d+)?)/) || [])[1] || 0);
-  adaylar.sort((x, y) => surum(y) - surum(x));
-  return adaylar[0] || null;
+  return adaylar.sort((x, y) => surum(y) - surum(x));
 }
-async function geminiCagri(govde, anahtar, tekrar = true) {
-  const res = await ag(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent`, {
-    method: "POST", headers: { "x-goog-api-key": anahtar, "content-type": "application/json" }, body: JSON.stringify(govde)
-  });
-  if (res.status === 404 && tekrar) {
-    const yeni = await geminiModelBul(anahtar);
-    if (yeni && yeni !== geminiModel) { console.log("Gemini modeli değiştirildi:", geminiModel, "->", yeni); geminiModel = yeni; return geminiCagri(govde, anahtar, false); }
+// 5xx (özellikle 503 "yoğun talep") geçicidir: bekleyip tekrar dener, sürerse başka bir flash modeline geçer.
+// 404 (model kaldırılmış) ise doğrudan başka modele geçer.
+async function geminiCagri(govde, anahtar) {
+  const denenen = new Set();
+  let model = geminiModel, son = null;
+  for (let m = 0; m < 3; m++) {
+    denenen.add(model);
+    let res;
+    for (let i = 0; i < 4; i++) {
+      res = await ag(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+        method: "POST", headers: { "x-goog-api-key": anahtar, "content-type": "application/json" }, body: JSON.stringify(govde)
+      });
+      if ([500, 502, 503, 504].includes(res.status) && i < 3) { await bekle(AG_BEKLE * (i + 1) * 3); continue; }
+      break;
+    }
+    if (res.ok) { if (model !== geminiModel) console.log("Gemini modeli değiştirildi:", geminiModel, "->", model); geminiModel = model; return res.json(); }
+    son = res;
+    if (res.status === 404 || res.status >= 500) {
+      const sirada = (await geminiModelleri(anahtar).catch(() => [])).find((x) => !denenen.has(x));
+      if (sirada) { model = sirada; continue; }
+    }
+    break;
   }
-  if (!res.ok) { const e = new Error("Gemini API " + res.status + ": " + (await res.text()).slice(0, 300)); e.status = res.status; throw e; }
-  return res.json();
+  const metin = (await son.text()).slice(0, 300);
+  const e = new Error(son.status >= 500
+    ? `Gemini şu an çok yoğun (${son.status}); birkaç dakika sonra tekrar dene ya da Prompt hazırla modunu kullan. Ayrıntı: ${metin.slice(0, 160)}`
+    : "Gemini API " + son.status + ": " + metin);
+  e.status = son.status;
+  throw e;
 }
 const geminiMetin = (j) => (((j.candidates || [])[0] || {}).content || {}).parts ? j.candidates[0].content.parts.map((p) => p.text || "").join("") : "";
 
