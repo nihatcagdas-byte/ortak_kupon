@@ -277,6 +277,7 @@ function mountTahminler() {
   btn.dataset.view = "tahminler";
   btn.textContent = "Tahminler";
   navMatches.insertAdjacentElement("afterend", btn);
+  btn.hidden = true; // sadece admin (Nihat) görür; aşağıdaki yoklama açar/kapatır
 
   tahminRoot = document.createElement("main");
   tahminRoot.id = "view-tahminler";
@@ -301,6 +302,24 @@ function mountTahminler() {
   });
   return true;
 }
+
+/* Tahminler sekmesi yalnızca admin'e (Nihat) görünür. Giriş/çıkış app.js'te
+   localStorage "kupon_user" üzerinden yapıldığı için her saniye yoklanır. */
+const ADMIN_ADI = "Nihat";
+function adminMi() { try { return localStorage.getItem("kupon_user") === ADMIN_ADI; } catch { return false; } }
+function sekmeGorunurluk() {
+  const btn = document.querySelector('.nav-btn[data-view="tahminler"]');
+  if (!btn) return;
+  const izinli = adminMi();
+  btn.hidden = !izinli;
+  btn.style.display = izinli ? "" : "none";
+  if (!izinli && tahminRoot && tahminRoot.classList.contains("active")) {
+    tahminRoot.classList.remove("active");
+    const home = document.querySelector('.nav-btn[data-view="home"]');
+    if (home) home.click();
+  }
+}
+setInterval(sekmeGorunurluk, 1000);
 
 const SONUC_ETIKET = { open: "Açık", won: "Tuttu", lost: "Yattı", void: "İptal" };
 const kuponDurumu = k => ["open", "won", "lost", "void"].includes(k.status) ? k.status : "open";
@@ -468,10 +487,10 @@ function baslat() {
 
 function init() {
   const dene = () => { const a = mountMaclar(), b = mountTahminler(); return a && b; };
-  if (dene()) { baslat(); renderMaclar(); return; }
+  if (dene()) { sekmeGorunurluk(); baslat(); renderMaclar(); return; }
   let n = 0;
   const t = setInterval(() => {
-    if (dene()) { clearInterval(t); baslat(); renderMaclar(); } else if (++n > 40) clearInterval(t);
+    if (dene()) { clearInterval(t); sekmeGorunurluk(); baslat(); renderMaclar(); } else if (++n > 40) clearInterval(t);
   }, 250);
 }
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
