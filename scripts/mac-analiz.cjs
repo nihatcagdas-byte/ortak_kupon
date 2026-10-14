@@ -16,7 +16,7 @@
 
 const MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-5-5";
 const HAFIF = process.env.ANALIZ_HAFIF_MODEL || "claude-haiku-5-5";
-const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3.8-flash";
 const GUNLUK_LIMIT = Number(process.env.ANALIZ_GUNLUK_LIMIT || 15);
 const TZ = "Europe/Istanbul";
 const trTarih = (ms) => new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(ms));
@@ -72,10 +72,27 @@ function macAyristir(soru) {
   return { ev, dep, tarih, lig: null };
 }
 
-async function geminiCagri(govde, anahtar) {
-  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`, {
+let geminiModel = GEMINI_MODEL;
+// Model kaldırıldıysa (404) güncel bir "flash" modelini listeden bulur
+async function geminiModelBul(anahtar) {
+  const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200", { headers: { "x-goog-api-key": anahtar } });
+  if (!res.ok) return null;
+  const j = await res.json();
+  const adaylar = (j.models || [])
+    .filter((m) => /flash/i.test(m.name) && !/(lite|image|tts|live|audio|thinking|exp|preview)/i.test(m.name) && (m.supportedGenerationMethods || []).includes("generateContent"))
+    .map((m) => m.name.replace(/^models\//, ""));
+  const surum = (n) => parseFloat((n.match(/gemini-(\d+(?:\.\d+)?)/) || [])[1] || 0);
+  adaylar.sort((x, y) => surum(y) - surum(x));
+  return adaylar[0] || null;
+}
+async function geminiCagri(govde, anahtar, tekrar = true) {
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent`, {
     method: "POST", headers: { "x-goog-api-key": anahtar, "content-type": "application/json" }, body: JSON.stringify(govde)
   });
+  if (res.status === 404 && tekrar) {
+    const yeni = await geminiModelBul(anahtar);
+    if (yeni && yeni !== geminiModel) { console.log("Gemini modeli değiştirildi:", geminiModel, "->", yeni); geminiModel = yeni; return geminiCagri(govde, anahtar, false); }
+  }
   if (!res.ok) { const e = new Error("Gemini API " + res.status + ": " + (await res.text()).slice(0, 300)); e.status = res.status; throw e; }
   return res.json();
 }
