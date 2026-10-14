@@ -352,11 +352,18 @@ async function geminiYaz(mac, veri, anahtar) {
     return g;
   };
   let j, uyari = null;
+  const ozet = (e) => { try { const m = JSON.parse(e.message.replace(/^Gemini API \d+: /, "")); return (m.error && m.error.message || "").slice(0, 200); } catch { return e.message.slice(0, 200); } };
   try { j = await geminiCagri(govde(true), anahtar); }
   catch (e) {
-    if (e.status === 429) throw new Error("Gemini ücretsiz limiti doldu (dakika/gün). Biraz sonra tekrar dene ya da 'Prompt hazırla' modunu kullan.");
-    if (e.status === 400 || e.status === 403) { uyari = "Gemini'de Google araması kullanılamadı; yorum yalnızca sunucu verisine dayanıyor."; j = await geminiCagri(govde(false), anahtar); }
-    else throw e;
+    // Ücretsiz katmanda Google araması kotası 0 olabilir; aramasız dene
+    if ([400, 403, 429].includes(e.status)) {
+      uyari = "Gemini'de Google araması kullanılamadı (" + e.status + "); yorum yalnızca sunucu verisine dayanıyor.";
+      try { j = await geminiCagri(govde(false), anahtar); }
+      catch (e2) {
+        if (e2.status === 429) throw new Error("Gemini kotası dolu veya bu hesapta ücretsiz kota yok (" + geminiModel + "). Google'ın mesajı: " + ozet(e2));
+        throw e2;
+      }
+    } else throw e;
   }
   const metin = geminiMetin(j);
   let cevap = jsonCikar(metin) || { baslik: `${mac.ev} - ${mac.dep}`, yorum: metin.trim().slice(0, 4000), ham: true };
