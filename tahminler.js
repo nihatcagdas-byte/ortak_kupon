@@ -327,14 +327,16 @@ function istatistik(liste) {
 }
 
 const GRUPLAR = [
-  { id: "guvenli", ad: "Güvenli", not: "Kupon 1 + Günün seçimi" },
-  { id: "dengeli", ad: "Dengeli", not: "Kupon 2 + 3" },
-  { id: "riskli", ad: "Riskli", not: "Kupon 5" }
+  { id: "guvenli", ad: "Güvenli", not: "Kupon 1 · her seçim ≥1,40" },
+  { id: "dengeli", ad: "Orta", not: "Kupon 2 · her seçim ≥1,70" },
+  { id: "riskli", ad: "Riskli", not: "Kupon 3 · her seçim ≥2,00" }
 ];
 function grupOf(k) {
   const t = k.tur || ({ 1: "guvenli", 2: "dengeli", 3: "dengeli", 4: "tekli", 5: "riskli" })[k.slot];
   return t === "tekli" ? "guvenli" : (t || "dengeli");
 }
+// Yeni düzen (3 kupon) kayıtlarında sema === 2 yazar; eski 5 kuponluk düzen ayrı tutulur ki istatistikler karışmasın.
+const yeniDuzen = k => k.sema === 2;
 function grupKarti(g, liste) {
   const s = istatistik(liste.filter(k => grupOf(k) === g.id));
   const gercek = s.secim ? s.secimTutan / s.secim : null;
@@ -385,7 +387,7 @@ function aiDurumHtml() {
   if (bugunVar || !aiDurum) return "";
   const hata = aiDurum.ok === false;
   return `<div class="thm-durum uyari"><b>Bugünün kuponları henüz yok.</b> ${hata ? "Son çalışma hatası: " + esc(aiDurum.message || "") : "Son çalışma: " + esc(aiDurum.message || "") }
-    <br><small>Son deneme: ${fmtTime(aiDurum.lastRun)}. Yedek çalışma 09:30'da otomatik tekrar dener.</small></div>`;
+    <br><small>Son deneme: ${fmtTime(aiDurum.lastRun)}. Sistem sabah 08:07-10:47 arasında 20 dakikada bir otomatik tekrar dener.</small></div>`;
 }
 
 function renderAI() {
@@ -394,11 +396,13 @@ function renderAI() {
   if (!aiKuponlar.length) {
     kutu.innerHTML = aiDurumHtml() + `<div class="thm-bos-kutu">
       <b>Henüz AI kuponu yok.</b>
-      <p>Her sabah 08:00'den sonra 5 kupon burada görünür.</p>
+      <p>Her sabah 08:00'den sonra 3 kupon (Güvenli, Orta, Riskli) burada görünür.</p>
     </div>`;
     return;
   }
   const s = istatistik(aiKuponlar);
+  const yeniKuponlar = aiKuponlar.filter(yeniDuzen), eskiKuponlar = aiKuponlar.filter(k => !yeniDuzen(k));
+  const eskiS = istatistik(eskiKuponlar);
   const gunler = [...new Set(aiKuponlar.map(k => k.dateKey))];
   if (!state.aiGun || !gunler.includes(state.aiGun)) state.aiGun = gunler[0];
   const secili = aiKuponlar.filter(k => k.dateKey === state.aiGun);
@@ -417,7 +421,9 @@ function renderAI() {
       <div><i>Seçim isabeti</i><b>${yuzde(gercek)}</b></div>
       <div><i>Sanal kâr/zarar</i><b class="${s.kar >= 0 ? "win" : "lose"}">${s.kar >= 0 ? "+" : ""}${Math.round(s.kar)}₺</b></div>
     </div>
-    <div class="thm-gruplar">${GRUPLAR.map(g => grupKarti(g, aiKuponlar)).join("")}</div>
+    <p class="thm-kalib"><b>Yeni düzen (3 kupon: Güvenli / Orta / Riskli)</b> istatistikleri${yeniKuponlar.length ? "" : " — ilk kuponlar sonuçlanınca burada görünecek"}:</p>
+    <div class="thm-gruplar">${GRUPLAR.map(g => grupKarti(g, yeniKuponlar)).join("")}</div>
+    ${eskiKuponlar.length ? `<p class="thm-kalib">Eski 5 kuponluk düzen (${eskiS.sonuclanan} sonuçlanan kupon): ${eskiS.tutan} tuttu${eskiS.sonuclanan ? " (" + yuzde(eskiS.tutan / eskiS.sonuclanan) + ")" : ""}, seçim isabeti ${yuzde(eskiS.secim ? eskiS.secimTutan / eskiS.secim : null)}. Aşağıdaki genel kutulara dahildir, yukarıdaki kartlara dahil değildir.</p>` : ""}
     <p class="thm-kalib">Kalibrasyon: AI'nın verdiği ortalama olasılık <b>${yuzde(beklenen)}</b>, gerçekleşen <b>${yuzde(gercek)}</b>.
       ${s.secim < 30 ? "Örnek sayısı az (" + s.secim + " seçim), erken yorum yapmayın." : ""}
       Sanal kâr/zarar her kupona ${SANAL_BAHIS}₺ sabit bahis varsayılarak hesaplanır.</p>
