@@ -10,7 +10,7 @@
 
 import { db, authReady } from "./firebase-config.js";
 import {
-  doc, onSnapshot, collection, query, orderBy, limit, addDoc, serverTimestamp
+  doc, onSnapshot, collection, query, orderBy, limit, addDoc, serverTimestamp, deleteDoc
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const SANAL_BAHIS = 100;          // AI kuponları için varsayımsal sabit tutar (₺)
@@ -291,10 +291,8 @@ function mountTahminler() {
     </div>
     <div id="thm-ai"></div>
     <section class="thm-chat" id="thm-chat">
-      <h3 class="thm-chat-baslik">💬 Maç analizi · Claude'a sor</h3>
-      <p class="thm-chat-alt">Bir maç yaz (örn. <i>Antalyaspor – Kayserispor</i>). Son maçlar, puan durumu, sakatlıklar ve internet araştırmasıyla analiz ederim. Maç dışındaki mesajlara cevap vermem. Bir analiz 1–3 dakika sürer.</p>
-      <div id="thm-chat-list" class="thm-chat-list"></div>
-      <p id="thm-chat-not" class="thm-chat-not" hidden></p>
+      <h3 class="thm-chat-baslik">💬 Maç analizi</h3>
+      <p class="thm-chat-alt">Bir maç yaz, son maçlar, puan durumu, sakatlıklar ve internet araştırmasıyla analiz edeyim. Maç dışındaki mesajlara cevap vermem.</p>
       <div class="thm-modlar" id="thm-modlar" role="radiogroup" aria-label="Analiz türü">
         <button type="button" class="thm-mod" data-mod="prompt" title="Veriyi ben toplarım, sen Claude.ai/ChatGPT'ye yapıştırırsın. Ücretsiz.">📋 Prompt hazırla <small>ücretsiz</small></button>
         <button type="button" class="thm-mod" data-mod="gemini" title="Gemini ücretsiz API + Google araması. Cevap burada çıkar.">🔎 Gemini <small>ücretsiz</small></button>
@@ -302,8 +300,10 @@ function mountTahminler() {
       </div>
       <form id="thm-chat-form" class="thm-chat-form" autocomplete="off">
         <input id="thm-chat-in" class="thm-ara" type="text" maxlength="300" placeholder="Takım – Takım (örn. Antalyaspor – Kayserispor)">
-        <button id="thm-chat-btn" class="thm-chat-btn" type="submit">Gönder</button>
+        <button id="thm-chat-btn" class="thm-chat-btn" type="submit">Analiz et</button>
       </form>
+      <p id="thm-chat-not" class="thm-chat-not" hidden></p>
+      <div id="thm-chat-list" class="thm-chat-list"></div>
       <details class="thm-gh">
         <summary>⚙ GitHub bağlantısı (analizi anında başlatmak için)</summary>
         <p>Analiz GitHub'da çalışır. Anında başlaması için GitHub'da <b>sadece bu repo</b> ve <b>Actions: Read and write</b> izni olan bir "fine-grained token" oluşturup buraya yapıştır. Anahtar yalnızca bu tarayıcıda saklanır; siteye veya veritabanına yazılmaz. Anahtar girmezsen soru kaydedilir ve en geç birkaç saat içinde yedek çalışma işler.</p>
@@ -322,11 +322,17 @@ function mountTahminler() {
   tahminRoot.addEventListener("click", e => {
     const g = e.target.closest("[data-thm-aigun]");
     if (g) { state.aiGun = g.dataset.thmAigun; renderAI(); }
+    const sl = e.target.closest("[data-thm-sil]");
+    if (sl) { analizSil(sl.dataset.thmSil); return; }
+    const tm = e.target.closest("[data-thm-temizle]");
+    if (tm) { tumunuSil(); return; }
+    const ac = e.target.closest("[data-thm-ac]");
+    if (ac) { itemAcKapa(ac.dataset.thmAc); return; }
     const tk = e.target.closest("[data-thm-tekrar]");
     if (tk) sor(tk.dataset.thmTekrar, tk.dataset.thmMod);
     const kp = e.target.closest("[data-thm-kopya]");
     if (kp) {
-      const ta = kp.closest(".thm-claude").querySelector("textarea");
+      const ta = kp.closest(".thm-item-govde").querySelector("textarea");
       if (ta) kopyala(ta, kp);
     }
     const md = e.target.closest("[data-mod]");
@@ -438,66 +444,116 @@ async function sor(metin, mod) {
   } finally { btn.disabled = false; }
 }
 
+const citeTemizle = s => String(s ?? "").replace(/<\/?cite[^>]*>/gi, "").replace(/\s+([.,;:!?])/g, "$1").replace(/ {2,}/g, " ").trim();
+const tx = s => esc(citeTemizle(s));
 const dizi = x => (Array.isArray(x) ? x : x ? [x] : []).map(v => typeof v === "string" ? v : (v && (v.oyuncu ? `${v.oyuncu}${v.neden ? " (" + v.neden + ")" : ""}` : JSON.stringify(v))) || "").filter(Boolean);
-const maddeler = x => { const l = dizi(x); return l.length ? `<ul>${l.map(v => `<li>${esc(v)}</li>`).join("")}</ul>` : ""; };
+const maddeler = x => { const l = dizi(x); return l.length ? `<ul>${l.map(v => `<li>${tx(v)}</li>`).join("")}</ul>` : ""; };
 const bolum = (b, ic) => ic ? `<div class="thm-an-bolum"><h6>${esc(b)}</h6>${ic}</div>` : "";
-const par = x => x ? `<p>${esc(x)}</p>` : "";
-const guvenSinif = g => ({ "yüksek": "won", "orta": "", "düşük": "lost" })[String(g || "").toLowerCase()] || "";
+const par = x => x ? `<p>${tx(x)}</p>` : "";
+const guvenSinif = g => ({ "yüksek": "yuksek", "orta": "orta", "düşük": "dusuk" })[String(g || "").toLowerCase()] || "orta";
+const ETIKET = { ozet: "Özet", yorum: "Yorum", puan_durumu: "Puan durumu", h2h: "Karşılaşma geçmişi", oran_degerlendirme: "Oran değerlendirmesi", baslik: "Maç" };
 
-function cevapHtml(c) {
-  if (!c) return `<p>Cevap boş geldi. Aynı soruyu tekrar sor.</p>`;
+// Eski/bozuk kayıtlar: JSON'u metin olarak kaydedilmiş cevabı toparlar
+function cevapNesne(c) {
+  if (!c || !c.ham || typeof c.yorum !== "string") return c;
+  const s = citeTemizle(c.yorum), a = s.indexOf("{"), b = s.lastIndexOf("}");
+  if (a >= 0 && b > a) {
+    try { const o = JSON.parse(s.slice(a, b + 1)); if (o && typeof o === "object" && !Array.isArray(o)) return { ...o, kaynaklar: c.kaynaklar, mac: c.mac, uyarilar: c.uyarilar, uyari: c.uyari }; } catch { /* yarım JSON */ }
+  }
+  return { ...c, yorum: s };
+}
+function hamSatirlar(s) {
+  const satirlar = [];
+  s.replace(/"(\w+)"\s*:\s*"((?:[^"\\]|\\.)*)"/g, (m, k, v) => { satirlar.push([k, v.replace(/\\n/g, "\n").replace(/\\"/g, '"')]); return m; });
+  return satirlar;
+}
+const ozetEtiketi = a => {
+  const c = cevapNesne(a.cevap);
+  const t = c && Array.isArray(c.tahminler) && c.tahminler[0];
+  return t && t.pazar ? `${t.pazar} · ${t.guven || "?"}` : "";
+};
+
+function cevapHtml(c0, id) {
+  const c = cevapNesne(c0);
+  if (!c) return `<p class="thm-bos">Cevap boş geldi. Aynı soruyu tekrar sor.</p>`;
   if (c.tip === "red") return `<p>${esc(c.yorum)}</p>`;
   if (c.tip === "prompt") return `
-    <p><b>${esc(c.mac ? c.mac.ev + " - " + c.mac.dep : "Maç")}</b> verisi hazır. Aşağıdaki metni kopyala, Claude.ai veya ChatGPT'de yeni bir sohbete yapıştır; internet araştırmasını o sohbet yapar.</p>
-    <textarea class="thm-prompt" readonly rows="7">${esc(c.prompt)}</textarea>
+    <p><b>${esc(c.mac ? c.mac.ev + " - " + c.mac.dep : "Maç")}</b> verisi hazır. Metni kopyala, Claude.ai veya ChatGPT'de yeni bir sohbete yapıştır; internet araştırmasını o sohbet yapar.</p>
+    <textarea class="thm-prompt" readonly rows="6">${esc(c.prompt)}</textarea>
     <div class="thm-prompt-btn"><button type="button" class="thm-chat-btn" data-thm-kopya="1">Kopyala</button>
     <a class="thm-chat-btn thm-ikincil" href="https://claude.ai/new" target="_blank" rel="noopener noreferrer">Claude.ai'de aç</a>
     <a class="thm-chat-btn thm-ikincil" href="https://chatgpt.com/" target="_blank" rel="noopener noreferrer">ChatGPT'de aç</a></div>
-    ${(c.uyarilar || []).length ? `<p class="thm-an-uyari">ℹ ${esc(c.uyarilar.join(" "))}</p>` : ""}`;
-  if (c.ham) return c.yorum ? `<p>${esc(c.yorum)}</p>` : `<p>Cevap boş geldi. Aynı soruyu tekrar sor.</p>`;
+    ${Array.isArray(c.uyarilar) && c.uyarilar.length ? `<p class="thm-an-uyari">ℹ ${esc(c.uyarilar.join(" "))}</p>` : ""}`;
+  if (c.ham) {
+    const sat = hamSatirlar(c.yorum || "");
+    if (sat.length) return sat.map(([k, v]) => bolum(ETIKET[k] || k, par(v))).join("");
+    return c.yorum ? `<p>${tx(c.yorum)}</p>` : `<p class="thm-bos">Cevap boş geldi. Aynı soruyu tekrar sor.</p>`;
+  }
   const sak = c.sakatlik_ceza || {};
-  const tah = (Array.isArray(c.tahminler) ? c.tahminler : []).map(t => `<div class="thm-an-tah"><span class="thm-chip ${guvenSinif(t.guven)}">${esc(t.pazar)} · ${esc(t.guven || "?")}</span><span>${esc(t.gerekce)}</span></div>`).join("");
-  const form = c.form ? `<ul><li><b>${esc((c.mac && c.mac.ev) || "Ev")}:</b> ${esc(c.form.ev)}</li><li><b>${esc((c.mac && c.mac.dep) || "Deplasman")}:</b> ${esc(c.form.dep)}</li></ul>` : "";
-  const sakH = (sak.ev && sak.ev.length || sak.dep && sak.dep.length || sak.not)
-    ? `<ul><li><b>${esc((c.mac && c.mac.ev) || "Ev")}:</b> ${esc(dizi(sak.ev).join("; ") || "bildirilen yok")}</li><li><b>${esc((c.mac && c.mac.dep) || "Deplasman")}:</b> ${esc(dizi(sak.dep).join("; ") || "bildirilen yok")}</li></ul>${par(sak.not)}` : "";
-  const kay = (Array.isArray(c.kaynaklar) ? c.kaynaklar : []).filter(k => /^https?:\/\//.test(k.url)).map(k => `<a href="${esc(k.url)}" target="_blank" rel="noopener noreferrer">${esc(k.baslik || k.url)}</a>`).join(" · ");
+  const ad = (k, v) => (c.mac && c.mac[k]) || v;
+  const tahminler = (Array.isArray(c.tahminler) ? c.tahminler : []).filter(t => t && t.pazar).map(t =>
+    `<div class="thm-tahmin"><div class="thm-tahmin-ust"><b>${tx(t.pazar)}</b><span class="thm-guven ${guvenSinif(t.guven)}">${tx(t.guven || "orta")}</span></div>${par(t.gerekce)}</div>`).join("");
+  const form = c.form && typeof c.form === "object" ? `<ul><li><b>${esc(ad("ev", "Ev"))}:</b> ${tx(c.form.ev)}</li><li><b>${esc(ad("dep", "Deplasman"))}:</b> ${tx(c.form.dep)}</li></ul>` : par(c.form);
+  const sakH = (dizi(sak.ev).length || dizi(sak.dep).length || sak.not)
+    ? `<ul><li><b>${esc(ad("ev", "Ev"))}:</b> ${tx(dizi(sak.ev).join("; ") || "bildirilen yok")}</li><li><b>${esc(ad("dep", "Deplasman"))}:</b> ${tx(dizi(sak.dep).join("; ") || "bildirilen yok")}</li></ul>${par(sak.not)}` : "";
+  const detay = [bolum("Form", form), bolum("Puan durumu", par(c.puan_durumu)), bolum("Karşılaşma geçmişi", par(c.h2h)), bolum("Sakatlık / ceza", sakH),
+    bolum("İnternet araştırması", maddeler(c.haberler)), bolum("Oran değerlendirmesi", par(c.oran_degerlendirme)), bolum("Riskler", maddeler(c.riskler)), bolum("Eksik / doğrulanamayan", maddeler(c.eksik_veri))].join("");
+  const kay = (Array.isArray(c.kaynaklar) ? c.kaynaklar : []).filter(k => k && /^https?:\/\//.test(k.url)).map(k => `<a href="${esc(k.url)}" target="_blank" rel="noopener noreferrer">${esc(k.baslik || k.url)}</a>`).join("");
+  const notlar = [c.uyari, ...(Array.isArray(c.uyarilar) ? c.uyarilar : [])].filter(Boolean);
   return `
-    ${c.baslik ? `<h5 class="thm-an-baslik">${esc(c.baslik)}</h5>` : ""}
     ${par(c.ozet)}
-    ${bolum("Form", form)}
-    ${bolum("Puan durumu", par(c.puan_durumu))}
-    ${bolum("Karşılaşma geçmişi", par(c.h2h))}
-    ${bolum("Sakatlık / ceza", sakH)}
-    ${bolum("İnternet araştırması", maddeler(c.haberler))}
-    ${bolum("Oran değerlendirmesi", par(c.oran_degerlendirme))}
-    ${bolum("Tahminler", tah)}
-    ${bolum("Riskler", maddeler(c.riskler))}
-    ${c.yorum ? `<div class="thm-an-yorum"><h6>Claude'un yorumu</h6><p>${esc(c.yorum)}</p></div>` : ""}
-    ${bolum("Eksik / doğrulanamayan", maddeler(c.eksik_veri))}
-    ${c.uyari ? `<p class="thm-an-uyari">⚠ ${esc(c.uyari)}</p>` : ""}
-    ${Array.isArray(c.uyarilar) && c.uyarilar.length ? `<p class="thm-an-uyari">ℹ ${esc(c.uyarilar.join(" "))}</p>` : ""}
-    ${kay ? `<p class="thm-an-kaynak"><b>Kaynaklar:</b> ${kay}</p>` : ""}
-    <p class="thm-an-alt">Bu bir analiz yorumudur, kesin sonuç veya yatırım tavsiyesi değildir.</p>`;
+    ${tahminler ? `<div class="thm-tahminler">${tahminler}</div>` : ""}
+    ${c.yorum ? `<div class="thm-an-yorum"><h6>Claude'un yorumu</h6>${par(c.yorum)}</div>` : ""}
+    ${detay ? `<details class="thm-detay" data-k="${esc(id)}:detay"><summary>Detaylar</summary>${detay}</details>` : ""}
+    ${kay ? `<details class="thm-detay" data-k="${esc(id)}:kaynak"><summary>Kaynaklar (${(kay.match(/<a /g) || []).length})</summary><div class="thm-kaynaklar">${kay}</div></details>` : ""}
+    ${notlar.length ? `<p class="thm-an-uyari">ℹ ${esc(notlar.join(" "))}</p>` : ""}
+    <p class="thm-an-alt">Analiz yorumudur; kesin sonuç veya yatırım tavsiyesi değildir.</p>`;
+}
+
+const kapatilan = new Set(), acilan = new Set(), acikDetay = new Set();
+function itemAcKapa(id) {
+  const enYeni = analizler[0] && analizler[0].id;
+  const acikMi = acilan.has(id) || (id === enYeni && !kapatilan.has(id));
+  if (acikMi) { acilan.delete(id); kapatilan.add(id); } else { kapatilan.delete(id); acilan.add(id); }
+  renderChat();
+}
+async function analizSil(id) {
+  try { await deleteDoc(doc(db, "analizler", id)); } catch (err) { console.error(err); chatNot("Silinemedi: " + (err.code || err.message)); }
+}
+async function tumunuSil() {
+  if (!analizler.length || !window.confirm(`${analizler.length} analiz kalıcı olarak silinsin mi?`)) return;
+  for (const a of [...analizler]) { try { await deleteDoc(doc(db, "analizler", a.id)); } catch (err) { console.error(err); chatNot("Bazıları silinemedi: " + (err.code || err.message)); break; } }
 }
 
 function renderChat() {
   const kutu = tahminRoot && tahminRoot.querySelector("#thm-chat-list");
   if (!kutu) return;
-  if (!analizler.length) { kutu.innerHTML = `<p class="thm-chat-bos">Henüz soru yok.</p>`; return; }
-  const altta = kutu.scrollHeight - kutu.scrollTop - kutu.clientHeight < 80;
+  kutu.querySelectorAll("details[data-k]").forEach(d => { if (d.open) acikDetay.add(d.dataset.k); else acikDetay.delete(d.dataset.k); });
+  if (!analizler.length) { kutu.innerHTML = `<p class="thm-chat-bos">Henüz analiz yok. Yukarıya bir maç yazarak başla.</p>`; return; }
   const simdi = Date.now();
-  kutu.innerHTML = [...analizler].reverse().map(a => {
+  kutu.innerHTML = analizler.map((a, i) => {
     const ms = a.olusturma && a.olusturma.toMillis ? a.olusturma.toMillis() : simdi;
     const bekliyor = a.durum === "bekliyor" || a.durum === "calisiyor";
     const takildi = bekliyor && (simdi - ms) / 6e4 > TAKILDI_DK;
-    let cevap;
-    if (a.durum === "bitti") cevap = cevapHtml(a.cevap);
-    else if (a.durum === "hata") cevap = `<p>Analiz yapılamadı: ${esc(a.hata || "bilinmeyen hata")}</p><button class="thm-chat-btn thm-ikincil" data-thm-tekrar="${esc(a.soru)}" data-thm-mod="${esc(a.mod || "prompt")}">Yeniden sor</button>`;
-    else if (takildi) cevap = `<p>Beklenenden uzun sürdü. GitHub'daki çalışma gecikmiş olabilir.</p><button class="thm-chat-btn thm-ikincil" data-thm-tekrar="${esc(a.soru)}" data-thm-mod="${esc(a.mod || "prompt")}">Yeniden sor</button>`;
-    else cevap = `<p class="thm-yaziyor">${a.durum === "calisiyor" ? "Araştırıyor ve analiz yazıyor" : "Sırada"}<span>.</span><span>.</span><span>.</span> <small>(1–3 dk)</small></p>`;
-    return `<div class="thm-balon thm-ben"><p>${esc(a.soru)}</p><small class="thm-mod-etiket">${esc(MOD_ETIKET[a.mod] || "Claude")}</small></div><div class="thm-balon thm-claude">${cevap}</div>`;
-  }).join("");
-  if (altta) kutu.scrollTop = kutu.scrollHeight;
+    const acik = acilan.has(a.id) || (i === 0 && !kapatilan.has(a.id));
+    const mod = esc(a.mod || "prompt");
+    let durum, cevap;
+    if (a.durum === "bitti") { durum = ozetEtiketi(a) || (a.cevap && a.cevap.tip === "prompt" ? "Prompt hazır" : a.cevap && a.cevap.tip === "red" ? "Maç değil" : "Hazır"); cevap = cevapHtml(a.cevap, a.id); }
+    else if (a.durum === "hata") { durum = "Hata"; cevap = `<p>Analiz yapılamadı: ${esc(a.hata || "bilinmeyen hata")}</p><button class="thm-chat-btn thm-ikincil" data-thm-tekrar="${esc(a.soru)}" data-thm-mod="${mod}">Yeniden sor</button>`; }
+    else if (takildi) { durum = "Gecikti"; cevap = `<p>Beklenenden uzun sürdü. GitHub'daki çalışma gecikmiş olabilir.</p><button class="thm-chat-btn thm-ikincil" data-thm-tekrar="${esc(a.soru)}" data-thm-mod="${mod}">Yeniden sor</button>`; }
+    else { durum = a.durum === "calisiyor" ? "Çalışıyor" : "Sırada"; cevap = `<p class="thm-yaziyor">${a.durum === "calisiyor" ? "Araştırıyor ve analiz yazıyor" : "Sırada"}<span>.</span><span>.</span><span>.</span> <small>(1–3 dk)</small></p>`; }
+    const sinif = a.durum === "bitti" ? "tamam" : a.durum === "hata" ? "hata" : "bekle";
+    return `<article class="thm-item ${acik ? "acik" : ""}">
+      <div class="thm-item-bas" data-thm-ac="${esc(a.id)}" role="button" tabindex="0">
+        <div class="thm-item-metin"><b class="thm-item-soru">${esc(a.soru)}</b><small>${esc(MOD_ETIKET[a.mod] || "Prompt")} · ${esc(fmtTime(new Date(ms).toISOString()))}</small></div>
+        <span class="thm-item-durum ${sinif}">${esc(durum)}</span>
+        <span class="thm-item-ok" aria-hidden="true">${acik ? "▴" : "▾"}</span>
+        <button type="button" class="thm-sil" data-thm-sil="${esc(a.id)}" title="Sil" aria-label="Sil">✕</button>
+      </div>
+      ${acik ? `<div class="thm-item-govde">${cevap}</div>` : ""}
+    </article>`;
+  }).join("") + `<button type="button" class="thm-temizle" data-thm-temizle>Tüm geçmişi sil</button>`;
+  kutu.querySelectorAll("details[data-k]").forEach(d => { if (acikDetay.has(d.dataset.k)) d.open = true; });
 }
 
 function sohbetBaslat() {
@@ -507,8 +563,6 @@ function sohbetBaslat() {
     onSnapshot(query(collection(db, "analizler"), orderBy("olusturma", "desc"), limit(30)), snap => {
       analizler = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       renderChat();
-      const kutu = tahminRoot && tahminRoot.querySelector("#thm-chat-list");
-      if (kutu) kutu.scrollTop = kutu.scrollHeight;
     }, err => console.error("analizler okunamadı:", err));
   });
 }
