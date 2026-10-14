@@ -161,12 +161,12 @@ function adaylariUret(nesine, eslesen, secenek = {}) {
 }
 
 /* ---------------- Kupon şablonları ---------------- */
+// Yeni düzen (SEMA 2): 3 kupon. minPick/maxPick her seçimin oran sınırı, min/max toplam oran sınırı.
+const SEMA = 2;
 const SLOTLAR = [
-  { slot: 1, tur: "guvenli", label: "Kupon 1 · Güvenli", n: [2], min: 1.6, max: 2.4, minPick: 1.25, maxPick: 1.6 },
-  { slot: 2, tur: "dengeli", label: "Kupon 2 · Dengeli", n: [2, 3], min: 3.5, max: 4.5, minPick: 1.45, maxPick: 2.6 },
-  { slot: 3, tur: "dengeli", label: "Kupon 3 · Dengeli", n: [2, 3], min: 3.5, max: 4.5, minPick: 1.45, maxPick: 2.6, farkliMac: true },
-  { slot: 4, tur: "tekli", label: "Kupon 4 · Günün seçimi", n: [1], min: 1.5, max: 2.5, minPick: 1.5, maxPick: 2.5 },
-  { slot: 5, tur: "riskli", label: "Kupon 5 · Riskli", n: [3, 4], min: 8, max: 20, minPick: 1.9, maxPick: 3.2 }
+  { slot: 1, tur: "guvenli", ad: "Güvenli", label: "Kupon 1 · Güvenli", n: [3, 4], min: 2.7, max: 9.5, minPick: 1.4, maxPick: 1.75 },
+  { slot: 2, tur: "dengeli", ad: "Orta", label: "Kupon 2 · Orta", n: [3, 4], min: 4.9, max: 25, minPick: 1.7, maxPick: 2.3 },
+  { slot: 3, tur: "riskli", ad: "Riskli", label: "Kupon 3 · Riskli", n: [3], min: 8, max: 40, minPick: 2.0, maxPick: 3.5 }
 ];
 
 const carp = (picks) => picks.reduce((a, c) => a * c.odd, 1);
@@ -213,20 +213,28 @@ const sablonGerekce = (c) => {
 };
 const sablonRisk = (c) => `Tek seçimin tutma olasılığı yaklaşık %${Math.round(c.p * 100)}; kuponda diğer seçimlerle çarpılır.`;
 
-// 5 kuponu kural tabanlı kurar. Kuramadığı slotu atlar.
+// Tek kuponu kural tabanlı kurar. Önce 'haric' maçlar dışarıda bırakılır (kuponlar farklı maçlardan olsun),
+// olmazsa serbest bırakılır.
+function kuralKupon(adaylar, cfg, haric = new Set()) {
+  let secim = enIyiKombine(adaylar, cfg, haric);
+  if (!secim && haric.size) secim = enIyiKombine(adaylar, cfg);
+  if (!secim) return null;
+  return {
+    slot: cfg.slot, label: cfg.label, tur: cfg.tur, method: "kural",
+    picks: secim.map((c) => ({ id: c.id, reason: sablonGerekce(c), risk: sablonRisk(c) }))
+  };
+}
+
+// Tüm kuponları sırayla kurar; mümkün olduğunca her maç yalnızca bir kuponda kullanılır.
 function kuralKuponlari(adaylar) {
+  const byId = new Map(adaylar.map((c) => [c.id, c]));
+  const kullanilan = new Set();
   const sonuc = [];
-  const kullanilanDengeli = new Set();
   for (const cfg of SLOTLAR) {
-    let secim = null;
-    if (cfg.farkliMac) secim = enIyiKombine(adaylar, cfg, kullanilanDengeli);
-    if (!secim) secim = enIyiKombine(adaylar, cfg);
-    if (!secim) continue;
-    if (cfg.tur === "dengeli" && !cfg.farkliMac) secim.forEach((c) => kullanilanDengeli.add(c.matchId));
-    sonuc.push({
-      slot: cfg.slot, label: cfg.label, tur: cfg.tur, method: "kural",
-      picks: secim.map((c) => ({ id: c.id, reason: sablonGerekce(c), risk: sablonRisk(c) }))
-    });
+    const k = kuralKupon(adaylar, cfg, kullanilan);
+    if (!k) continue;
+    k.picks.forEach((p) => kullanilan.add(byId.get(p.id).matchId));
+    sonuc.push(k);
   }
   return sonuc;
 }
@@ -246,6 +254,7 @@ function kuponDogrula(taslak, byId) {
   if (new Set(picks.map((c) => c.matchId)).size !== picks.length) return { ok: false, hata: "aynı maçtan birden fazla seçim" };
   if (picks.some((c) => c.mbs > picks.length)) return { ok: false, hata: "MBS kuralı sağlanmıyor" };
   if (cfg.maxPick && picks.some((c) => c.odd > cfg.maxPick)) return { ok: false, hata: "tek seçim oranı çok yüksek" };
+  if (cfg.minPick && picks.some((c) => c.odd < cfg.minPick)) return { ok: false, hata: "tek seçim oranı çok düşük" };
   const toplam = carp(picks);
   if (toplam < cfg.min || toplam > cfg.max) return { ok: false, hata: `toplam oran ${toplam.toFixed(2)} aralık dışı` };
   return { ok: true, picks, totalOdd: yuvarla(toplam, 2), cfg };
@@ -269,20 +278,19 @@ function claudeIstemi(adaylar, notlar = "") {
   const sistem = "Sen bir futbol kuponu analistisin. Sadece sana verilen aday listesinden seçim yaparsın. " +
     "Listedeki sayıların dışında haber, sakatlık, rotasyon, takım bilgisi UYDURMAZSIN. Gerekçeler Türkçe, kısa ve sayılara dayalı olur. " +
     "Kazanç garantisi vermezsin; riski dürüstçe yazarsın. Çıktın yalnızca geçerli JSON olur.";
+  const f = (x) => String(x).replace(".", ",");
+  const kuponSatirlari = SLOTLAR.map((c) =>
+    `${c.slot}) "${c.ad}": ${c.n.join(" veya ")} seçim, HER seçimin oranı ${f(c.minPick)}-${f(c.maxPick)} arasında, toplam oran ${f(c.min)}-${f(c.max)}.`).join("\n");
   const kullanici = `Bugünün aday seçimleri (her satır bir seçim; p = piyasa ve API-Football olasılığının birleşimi, pAPI boşsa ikinci kaynak yok;
 deger = Nesine oranı x (Nesine+Bet365) ortalama olasılığı, sadece MS ve çifte şansta var: 1'in üstü Nesine fiyatının ortalamaya göre cömert olduğunu gösterir, kârlılık garantisi değildir):
 ${satirlar}
 ${notlar}
 
-Tam 5 kupon kur:
-1) "Güvenli": 2 seçim, toplam oran 1,60-2,40, her seçim oranı en fazla 1,60.
-2) "Dengeli A": 2 veya 3 seçim, toplam oran 3,50-4,50, her seçim oranı en fazla 2,60.
-3) "Dengeli B": 2 veya 3 seçim, toplam oran 3,50-4,50, mümkünse Dengeli A'dan farklı maçlar.
-4) "Günün seçimi": tek seçim, oran 1,50-2,50.
-5) "Riskli": 3 veya 4 seçim, toplam oran 8-20, her seçim oranı en fazla 3,20.
+Tam ${SLOTLAR.length} kupon kur:
+${kuponSatirlari}
 
 Kurallar:
-- Bir kuponda aynı maçtan en fazla bir seçim.
+- Bir kuponda aynı maçtan en fazla bir seçim. Kuponlar birbirinden FARKLI maçlardan oluşsun (aynı maç iki kuponda olmasın).
 - Her seçimin mbs değeri, kuponun seçim sayısından büyük olamaz (örn. mbs 3 olan maç en az 3 seçimli kuponda olur).
 - Yüksek p'li, iki kaynağın (pPiyasa ve pAPI) uyumlu olduğu seçimleri tercih et; iki kaynak çok ayrışıyorsa nedenini riskte belirt.
 - Olasılıkları benzer iki seçim arasında "deger" değeri yüksek olanı tercih et (varsa).
@@ -290,7 +298,7 @@ Kurallar:
 - Sadece aday listesindeki "id" değerlerini kullan.
 
 Yalnızca şu biçimde JSON döndür:
-{"kuponlar":[{"slot":1,"picks":[{"id":"...","reason":"...","risk":"..."}]},{"slot":2,...},{"slot":3,...},{"slot":4,...},{"slot":5,...}]}`;
+{"kuponlar":[${SLOTLAR.map((c) => `{"slot":${c.slot},"picks":[{"id":"...","reason":"...","risk":"..."}]}`).join(",")}]}`;
   return { sistem, kullanici };
 }
 
@@ -350,6 +358,6 @@ const gecerliOran = (picks) => yuvarla(picks.filter((p) => p.result !== "void").
 
 module.exports = {
   TZ, trTarih, trHM, dk, yuvarla, normalize, benzerlik, esle, marjsiz, poissonCdf, apiGorusu,
-  adaylariUret, SLOTLAR, enIyiKombine, kuralKuponlari, kuponDogrula, pickBelgesi,
+  adaylariUret, SEMA, skorHesap, SLOTLAR, enIyiKombine, kuralKupon, kuralKuponlari, kuponDogrula, pickBelgesi,
   claudeIstemi, claudeCevabiniOku, pickSonucu, kuponDurumu, gecerliOran, BITMIS, IPTAL
 };

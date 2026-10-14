@@ -1,7 +1,7 @@
-// Günün 5 AI kuponunu üretir ve Firestore'a (aiCoupons/{tarih}_{sıra}) yazar.
+// Günün 3 AI kuponunu (Güvenli / Orta / Riskli) üretir ve Firestore'a (aiCoupons/{tarih}_{sıra}) yazar.
 //
 // Akış: bulten/{bugün} (Nesine) + liveMatches/{bugün} (API-Football) -> aday seçimler ->
-//       Claude 5 kuponu seçer ve gerekçe yazar -> sunucu doğrular (oran, MBS, tek maç) ->
+//       Claude 3 kuponu seçer ve gerekçe yazar -> sunucu doğrular (oran, MBS, tek maç) ->
 //       geçersiz/eksik kuponlar kural tabanlı kuponla değiştirilir -> yazılır.
 //
 // Ortam değişkenleri:
@@ -27,13 +27,14 @@ async function claudeKuponlari(adaylar, anahtar, fetchImpl = fetch, notlar = "")
   return M.claudeCevabiniOku(metin);
 }
 
-// Claude taslaklarını doğrular; geçersiz slotları kural tabanlı kuponla doldurur
+// Claude taslaklarını doğrular; geçersiz slotları kural tabanlı kuponla doldurur.
+// Kuponlar mümkün olduğunca farklı maçlardan oluşur (Claude'un çakışan önerisi reddedilir, kural kuponu kurulur).
 function birlestir(adaylar, claudeTaslak) {
   const byId = new Map(adaylar.map((c) => [c.id, c]));
-  const kuralSlot = new Map(M.kuralKuponlari(adaylar).map((k) => [k.slot, k]));
   const sonuc = [], notlar = [];
   const imza = (picks) => picks.map((c) => c.id).sort().join(",");
   const kullanilan = new Set();
+  const kullanilanMac = new Set();
 
   for (const cfg of M.SLOTLAR) {
     let secilen = null, method = "kural";
@@ -42,10 +43,11 @@ function birlestir(adaylar, claudeTaslak) {
       const v = M.kuponDogrula({ ...cl, slot: cfg.slot }, byId);
       if (!v.ok) notlar.push(`Kupon ${cfg.slot}: Claude önerisi reddedildi (${v.hata})`);
       else if (kullanilan.has(imza(v.picks))) notlar.push(`Kupon ${cfg.slot}: Claude önerisi başka bir kuponla aynı`);
+      else if (v.picks.some((c) => kullanilanMac.has(c.matchId))) notlar.push(`Kupon ${cfg.slot}: Claude önerisi başka kuponla aynı maçı kullanıyor`);
       else { secilen = v; method = "claude"; }
     }
     if (!secilen) {
-      const k = kuralSlot.get(cfg.slot);
+      const k = M.kuralKupon(adaylar, cfg, kullanilanMac);
       if (k) {
         const v = M.kuponDogrula(k, byId);
         if (v.ok && !kullanilan.has(imza(v.picks))) secilen = v;
@@ -53,6 +55,7 @@ function birlestir(adaylar, claudeTaslak) {
     }
     if (!secilen) { notlar.push(`Kupon ${cfg.slot}: kurulamadı`); continue; }
     kullanilan.add(imza(secilen.picks));
+    secilen.picks.forEach((c) => kullanilanMac.add(c.matchId));
     sonuc.push({ slot: cfg.slot, label: cfg.label, tur: cfg.tur, method, totalOdd: secilen.totalOdd, picks: secilen.picks });
   }
   return { kuponlar: sonuc, notlar };
@@ -92,13 +95,19 @@ async function main() {
       : "";
     if (adaylar.length < 12) throw new Error(`Yeterli aday seçim yok (${adaylar.length}). Günün maçları çoğunlukla başlamış olabilir.`);
 
-    // Claude'a en olası ~90 adayı ver (her maçtan en iyi 3)
-    const maca = new Map();
-    adaylar.slice().sort((a, b) => b.p - a.p).forEach((c) => {
-      const l = maca.get(c.matchId) || [];
-      if (l.length < 3) { l.push(c); maca.set(c.matchId, l); }
-    });
-    const kisaListe = [...maca.values()].flat().sort((a, b) => b.p - a.p).slice(0, 90);
+    // Claude'a her kuponun oran aralığından en iyi adayları ver (düşük oranlı seçimler diğer bantları doldurmasın)
+    const secilenIdler = new Set();
+    const kisaListe = [];
+    for (const cfg of M.SLOTLAR) {
+      const maca = new Map();
+      adaylar
+        .filter((c) => c.odd >= cfg.minPick && c.odd <= cfg.maxPick)
+        .sort((a, b) => M.skorHesap(b) - M.skorHesap(a))
+        .forEach((c) => { const l = maca.get(c.matchId) || []; if (l.length < 2) { l.push(c); maca.set(c.matchId, l); } });
+      [...maca.values()].flat().sort((a, b) => M.skorHesap(b) - M.skorHesap(a)).slice(0, 40).forEach((c) => {
+        if (!secilenIdler.has(c.id)) { secilenIdler.add(c.id); kisaListe.push(c); }
+      });
+    }
 
     let taslak = null, claudeNot = "Claude kullanılmadı (ANTHROPIC_API_KEY yok).";
     if (process.env.ANTHROPIC_API_KEY) {
@@ -112,13 +121,19 @@ async function main() {
     const olusturma = new Date().toISOString();
     for (const k of kuponlar) {
       const belge = {
-        dateKey: bugun, slot: k.slot, label: k.label, tur: k.tur, method: k.method, status: "open",
+        dateKey: bugun, slot: k.slot, label: k.label, tur: k.tur, method: k.method, status: "open", sema: M.SEMA,
         totalOdd: k.totalOdd, picks: k.picks.map(M.pickBelgesi),
         oddsSource: "Nesine", oddsAt: bs.data().updatedAt, createdAt: olusturma
       };
       const ref = db.collection("aiCoupons").doc(`${bugun}_${k.slot}`);
       if (force) await ref.set(belge); else await ref.create(belge);
       console.log(`Kupon ${k.slot} (${k.method}): ${k.picks.map((c) => c.h + " " + c.pickLabel).join(" + ")} = ${k.totalOdd}`);
+    }
+    if (force) {
+      // eski 5 kuponluk düzenden kalan slotlar (4, 5) bugün için kaldırılır
+      for (const eski of [4, 5]) {
+        if (!M.SLOTLAR.some((c) => c.slot === eski)) await db.collection("aiCoupons").doc(`${bugun}_${eski}`).delete();
+      }
     }
     await yaz(true, `${kuponlar.length} kupon (${kuponlar.map((k) => k.method).join(",")}). ${claudeNot} ${notlar.join(" | ")}`);
   } catch (e) {
