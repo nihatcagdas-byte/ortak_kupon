@@ -442,7 +442,7 @@ const par = x => x ? `<p>${esc(x)}</p>` : "";
 const guvenSinif = g => ({ "yüksek": "won", "orta": "", "düşük": "lost" })[String(g || "").toLowerCase()] || "";
 
 function cevapHtml(c) {
-  if (!c) return "";
+  if (!c) return `<p>Cevap boş geldi. Aynı soruyu tekrar sor.</p>`;
   if (c.tip === "red") return `<p>${esc(c.yorum)}</p>`;
   if (c.tip === "prompt") return `
     <p><b>${esc(c.mac ? c.mac.ev + " - " + c.mac.dep : "Maç")}</b> verisi hazır. Aşağıdaki metni kopyala, Claude.ai veya ChatGPT'de yeni bir sohbete yapıştır; internet araştırmasını o sohbet yapar.</p>
@@ -451,13 +451,13 @@ function cevapHtml(c) {
     <a class="thm-chat-btn thm-ikincil" href="https://claude.ai/new" target="_blank" rel="noopener noreferrer">Claude.ai'de aç</a>
     <a class="thm-chat-btn thm-ikincil" href="https://chatgpt.com/" target="_blank" rel="noopener noreferrer">ChatGPT'de aç</a></div>
     ${(c.uyarilar || []).length ? `<p class="thm-an-uyari">ℹ ${esc(c.uyarilar.join(" "))}</p>` : ""}`;
-  if (c.ham) return `<p>${esc(c.yorum)}</p>`;
+  if (c.ham) return c.yorum ? `<p>${esc(c.yorum)}</p>` : `<p>Cevap boş geldi. Aynı soruyu tekrar sor.</p>`;
   const sak = c.sakatlik_ceza || {};
-  const tah = (c.tahminler || []).map(t => `<div class="thm-an-tah"><span class="thm-chip ${guvenSinif(t.guven)}">${esc(t.pazar)} · ${esc(t.guven || "?")}</span><span>${esc(t.gerekce)}</span></div>`).join("");
+  const tah = (Array.isArray(c.tahminler) ? c.tahminler : []).map(t => `<div class="thm-an-tah"><span class="thm-chip ${guvenSinif(t.guven)}">${esc(t.pazar)} · ${esc(t.guven || "?")}</span><span>${esc(t.gerekce)}</span></div>`).join("");
   const form = c.form ? `<ul><li><b>${esc((c.mac && c.mac.ev) || "Ev")}:</b> ${esc(c.form.ev)}</li><li><b>${esc((c.mac && c.mac.dep) || "Deplasman")}:</b> ${esc(c.form.dep)}</li></ul>` : "";
   const sakH = (sak.ev && sak.ev.length || sak.dep && sak.dep.length || sak.not)
     ? `<ul><li><b>${esc((c.mac && c.mac.ev) || "Ev")}:</b> ${esc(dizi(sak.ev).join("; ") || "bildirilen yok")}</li><li><b>${esc((c.mac && c.mac.dep) || "Deplasman")}:</b> ${esc(dizi(sak.dep).join("; ") || "bildirilen yok")}</li></ul>${par(sak.not)}` : "";
-  const kay = (c.kaynaklar || []).filter(k => /^https?:\/\//.test(k.url)).map(k => `<a href="${esc(k.url)}" target="_blank" rel="noopener noreferrer">${esc(k.baslik || k.url)}</a>`).join(" · ");
+  const kay = (Array.isArray(c.kaynaklar) ? c.kaynaklar : []).filter(k => /^https?:\/\//.test(k.url)).map(k => `<a href="${esc(k.url)}" target="_blank" rel="noopener noreferrer">${esc(k.baslik || k.url)}</a>`).join(" · ");
   return `
     ${c.baslik ? `<h5 class="thm-an-baslik">${esc(c.baslik)}</h5>` : ""}
     ${par(c.ozet)}
@@ -472,7 +472,7 @@ function cevapHtml(c) {
     ${c.yorum ? `<div class="thm-an-yorum"><h6>Claude'un yorumu</h6><p>${esc(c.yorum)}</p></div>` : ""}
     ${bolum("Eksik / doğrulanamayan", maddeler(c.eksik_veri))}
     ${c.uyari ? `<p class="thm-an-uyari">⚠ ${esc(c.uyari)}</p>` : ""}
-    ${(c.uyarilar || []).length ? `<p class="thm-an-uyari">ℹ ${esc(c.uyarilar.join(" "))}</p>` : ""}
+    ${Array.isArray(c.uyarilar) && c.uyarilar.length ? `<p class="thm-an-uyari">ℹ ${esc(c.uyarilar.join(" "))}</p>` : ""}
     ${kay ? `<p class="thm-an-kaynak"><b>Kaynaklar:</b> ${kay}</p>` : ""}
     <p class="thm-an-alt">Bu bir analiz yorumudur, kesin sonuç veya yatırım tavsiyesi değildir.</p>`;
 }
