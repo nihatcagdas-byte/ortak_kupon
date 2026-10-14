@@ -35,14 +35,31 @@ const benzerlik = (a, b) => {
   return ort / Math.max(xs.size, ys.size);
 };
 
+const AG_BEKLE = Number(process.env.AG_BEKLE_MS || 2000);
 async function bekle(ms) { return new Promise((r) => setTimeout(r, ms)); }
 
+// fetch + zaman aşımı + ağ hatasında yeniden deneme; "fetch failed" yerine nedeni yazar
+async function ag(url, opts = {}, ayar = {}) {
+  const sure = ayar.sure || 150000, deneme = ayar.deneme || 3;
+  let son;
+  for (let i = 0; i < deneme; i++) {
+    const ac = new AbortController();
+    const t = setTimeout(() => ac.abort(), sure);
+    try { return await fetch(url, { ...opts, signal: ac.signal }); }
+    catch (e) { son = e; if (i < deneme - 1) await bekle(AG_BEKLE * (i + 1)); }
+    finally { clearTimeout(t); }
+  }
+  const c = son && son.cause;
+  const neden = son && son.name === "AbortError" ? "zaman aşımı" : (c && (c.code || c.message)) || (son && son.message) || "bilinmiyor";
+  throw new Error(`Ağ hatası (${new URL(url).host}): ${neden}`);
+}
+
 async function claudeCagri(govde, anahtar, tekrar = 2) {
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
+  const res = await ag("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "x-api-key": anahtar, "anthropic-version": "2023-06-01", "content-type": "application/json" },
     body: JSON.stringify(govde)
-  });
+  }, { sure: 200000 });
   if ((res.status === 429 || res.status >= 500) && tekrar > 0) { await bekle(8000); return claudeCagri(govde, anahtar, tekrar - 1); }
   if (!res.ok) { const e = new Error("Claude API " + res.status + ": " + (await res.text()).slice(0, 300)); e.status = res.status; throw e; }
   return res.json();
@@ -75,7 +92,7 @@ function macAyristir(soru) {
 let geminiModel = GEMINI_MODEL;
 // Model kaldırıldıysa (404) güncel bir "flash" modelini listeden bulur
 async function geminiModelBul(anahtar) {
-  const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200", { headers: { "x-goog-api-key": anahtar } });
+  const res = await ag("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200", { headers: { "x-goog-api-key": anahtar } });
   if (!res.ok) return null;
   const j = await res.json();
   const adaylar = (j.models || [])
@@ -86,7 +103,7 @@ async function geminiModelBul(anahtar) {
   return adaylar[0] || null;
 }
 async function geminiCagri(govde, anahtar, tekrar = true) {
-  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent`, {
+  const res = await ag(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent`, {
     method: "POST", headers: { "x-goog-api-key": anahtar, "content-type": "application/json" }, body: JSON.stringify(govde)
   });
   if (res.status === 404 && tekrar) {
@@ -128,7 +145,7 @@ function apiKur(anahtar) {
   async function get(yol, tekrar = 1) {
     sayac.n++;
     try {
-      const res = await fetch("https://v3.football.api-sports.io" + yol, { headers: { "x-apisports-key": anahtar } });
+      const res = await ag("https://v3.football.api-sports.io" + yol, { headers: { "x-apisports-key": anahtar } });
       if (res.status === 429 && tekrar > 0) { await bekle(15000); return get(yol, tekrar - 1); }
       if (!res.ok) return null;
       const j = await res.json();
@@ -347,24 +364,23 @@ async function analizYaz(mac, veri, anahtar) {
 const KULLANICI_METNI = (mac, veri, kisa) => `MAÇ: ${mac.ev} - ${mac.dep}${mac.tarih ? " (" + mac.tarih + ")" : ""}${mac.lig ? " · " + mac.lig : ""}\nBugün: ${trTarih(Date.now())}\n\nVERİ (sunucu topladı):\n${JSON.stringify(veri).slice(0, kisa || 24000)}`;
 
 async function geminiYaz(mac, veri, anahtar) {
-  const govde = (araclar) => {
-    const g = { systemInstruction: { parts: [{ text: SISTEM }] }, contents: [{ role: "user", parts: [{ text: KULLANICI_METNI(mac, veri) }] }], generationConfig: { maxOutputTokens: 16000, temperature: 0.4 } };
+  const govde = (araclar, dusunme) => {
+    const g = { systemInstruction: { parts: [{ text: SISTEM }] }, contents: [{ role: "user", parts: [{ text: KULLANICI_METNI(mac, veri) }] }], generationConfig: { maxOutputTokens: 12000, temperature: 0.4 } };
     if (araclar) g.tools = [{ google_search: {} }];
+    if (dusunme) g.generationConfig.thinkingConfig = { thinkingLevel: "low" }; // düşünme çıktı hakkını yemesin
     return g;
   };
-  let j, uyari = null;
   const ozet = (e) => { try { const m = JSON.parse(e.message.replace(/^Gemini API \d+: /, "")); return (m.error && m.error.message || "").slice(0, 200); } catch { return e.message.slice(0, 200); } };
-  try { j = await geminiCagri(govde(true), anahtar); }
-  catch (e) {
-    // Ücretsiz katmanda Google araması kotası 0 olabilir; aramasız dene
-    if ([400, 403, 429].includes(e.status)) {
-      uyari = "Gemini'de Google araması kullanılamadı (" + e.status + "); yorum yalnızca sunucu verisine dayanıyor.";
-      try { j = await geminiCagri(govde(false), anahtar); }
-      catch (e2) {
-        if (e2.status === 429) throw new Error("Gemini kotası dolu veya bu hesapta ücretsiz kota yok (" + geminiModel + "). Google'ın mesajı: " + ozet(e2));
-        throw e2;
-      }
-    } else throw e;
+  // Basamaklı deneme: [arama+düşünme ayarı] -> [arama] -> [aramasız]. Parametre/kota reddedilirse bir alt basamak.
+  const basamaklar = [[true, true], [true, false], [false, false]];
+  let j = null, uyari = null, sonHata = null;
+  for (const [araclar, dusunme] of basamaklar) {
+    try { j = await geminiCagri(govde(araclar, dusunme), anahtar); sonHata = null; if (!araclar) uyari = "Gemini'de Google araması kullanılamadı; yorum yalnızca sunucu verisine dayanıyor."; break; }
+    catch (e) { sonHata = e; if (![400, 403, 429].includes(e.status)) throw e; }
+  }
+  if (!j) {
+    if (sonHata.status === 429) throw new Error("Gemini kotası dolu veya bu hesapta ücretsiz kota yok (" + geminiModel + "). Google'ın mesajı: " + ozet(sonHata));
+    throw sonHata;
   }
   const metin = geminiMetin(j);
   if (!metin.trim()) {
@@ -443,12 +459,13 @@ async function main() {
   const anahtarlar = { claude: process.env.ANTHROPIC_API_KEY, gemini: process.env.GEMINI_API_KEY, api: process.env.API_FOOTBALL_KEY };
   const FieldValue = admin.firestore.FieldValue;
   const id = (process.env.ANALIZ_ID || "").trim();
-  let refler;
-  if (id) refler = [db.collection("analizler").doc(id)];
-  else refler = (await db.collection("analizler").where("durum", "==", "bekliyor").limit(3).get()).docs.map((d) => d.ref);
+  // Önce istenen belge, sonra bekleyen diğerleri (eşzamanlılık grubunda iptal edilen çalışmaların soruları da böylece işlenir)
+  const refler = id ? [db.collection("analizler").doc(id)] : [];
+  const bekleyen = (await db.collection("analizler").where("durum", "==", "bekliyor").limit(5).get()).docs.map((d) => d.ref);
+  bekleyen.forEach((r) => { if (r.id !== id && refler.length < 5) refler.push(r); });
   if (!refler.length) { console.log("Bekleyen analiz yok."); return; }
   for (const r of refler) await isle(db, FieldValue, r, anahtarlar);
 }
 
 if (require.main === module) main().catch((e) => { console.error(e); process.exit(1); });
-module.exports = { macAyristir, promptMetni, geminiYaz, ascii, benzerlik, formOzeti, puanDurumuSatiri, sakatlikOzeti, jsonCikar, takimBul, veriTopla, macCikar, analizYaz };
+module.exports = { main, ag, isle, apiKur, macAyristir, promptMetni, geminiYaz, ascii, benzerlik, formOzeti, puanDurumuSatiri, sakatlikOzeti, jsonCikar, takimBul, veriTopla, macCikar, analizYaz };
