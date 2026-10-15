@@ -76,7 +76,7 @@ async function main() {
     const bugun = trTarih(Date.now());
     if (process.env.SKIP_IF_FRESH === "1") {
       const var_ = await col.doc(bugun).get();
-      if (var_.exists && Date.now() - new Date(var_.data().updatedAt).getTime() < 12 * 36e5) {
+      if (var_.exists && Date.now() - new Date(var_.data().updatedAt).getTime() < 4 * 36e5) {
         console.log("Bugünün bülteni zaten taze, Nesine'ye tekrar istek atılmadı.");
         return;
       }
