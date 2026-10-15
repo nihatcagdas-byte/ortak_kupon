@@ -369,7 +369,7 @@ function sekmeGorunurluk() {
   if (!btn) return;
   const izinli = adminMi();
   btn.hidden = !izinli;
-  if (izinli) sohbetBaslat();
+  if (izinli) { sohbetBaslat(); otoTetik(); }
   btn.style.display = izinli ? "" : "none";
   if (!izinli && tahminRoot && tahminRoot.classList.contains("active")) {
     tahminRoot.classList.remove("active");
@@ -407,26 +407,59 @@ function chatNot(metin) {
   el.hidden = !metin;
 }
 
-async function tetikle(id) {
+// GitHub Actions iş akışını başlatır. Dönüş: "ok" | "yetki" | "yok" | "ag" | "hata"
+async function ghDispatch(workflow, inputs) {
   const tok = ghAnahtar();
-  if (!tok) { chatNot("Soru kaydedildi. GitHub anahtarı girilmediği için analiz anında başlamaz; yedek çalışma en geç birkaç saat içinde işler. (Aşağıdaki ⚙ bölümünden anahtar ekleyebilirsin.)"); return; }
+  if (!tok) return "anahtar-yok";
   let bulunamadi = false;
   for (const ref of ["main", "master"]) {
     try {
-      const res = await fetch(`https://api.github.com/repos/${GH_REPO}/actions/workflows/${GH_WORKFLOW}/dispatches`, {
+      const res = await fetch(`https://api.github.com/repos/${GH_REPO}/actions/workflows/${workflow}/dispatches`, {
         method: "POST",
         headers: { Authorization: "Bearer " + tok, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" },
-        body: JSON.stringify({ ref, inputs: { id } })
+        body: JSON.stringify({ ref, inputs })
       });
-      if (res.status === 204) { chatNot(""); return; }
-      if (res.status === 401 || res.status === 403) { chatNot("GitHub anahtarı reddedildi (süresi dolmuş veya izin eksik). Soru kaydedildi; yedek çalışma işler."); return; }
+      if (res.status === 204) return "ok";
+      if (res.status === 401 || res.status === 403) return "yetki";
       if (res.status === 404) { bulunamadi = true; continue; } // dal adı farklı olabilir (main/master)
-    } catch { chatNot("GitHub'a ulaşılamadı. Soru kaydedildi; yedek çalışma işler."); return; }
+    } catch { return "ag"; }
   }
-  chatNot(bulunamadi
-    ? "GitHub'da mac-analiz.yml bulunamadı veya anahtarın bu repoya erişimi yok. Soru kaydedildi; yedek çalışma işler."
-    : "Analiz başlatılamadı (GitHub). Soru kaydedildi; yedek çalışma işler.");
+  return bulunamadi ? "yok" : "hata";
 }
+
+async function tetikle(id) {
+  const s = await ghDispatch(GH_WORKFLOW, { id });
+  const NOT = {
+    ok: "",
+    "anahtar-yok": "Soru kaydedildi. GitHub anahtarı girilmediği için analiz anında başlamaz; yedek çalışma en geç birkaç saat içinde işler. (Aşağıdaki ⚙ bölümünden anahtar ekleyebilirsin.)",
+    yetki: "GitHub anahtarı reddedildi (süresi dolmuş veya izin eksik). Soru kaydedildi; yedek çalışma işler.",
+    ag: "GitHub'a ulaşılamadı. Soru kaydedildi; yedek çalışma işler.",
+    yok: "GitHub'da mac-analiz.yml bulunamadı veya anahtarın bu repoya erişimi yok. Soru kaydedildi; yedek çalışma işler.",
+    hata: "Analiz başlatılamadı (GitHub). Soru kaydedildi; yedek çalışma işler."
+  };
+  chatNot(NOT[s]);
+}
+
+/* Günlük kuponlar için güvence: GitHub'ın zamanlayıcısı saatlerce gecikebiliyor.
+   Nihat siteyi açtığında bugünün kuponları 08:30'dan sonra hâlâ yoksa iş akışı kendiliğinden başlatılır
+   (en fazla 30 dakikada bir; GitHub anahtarı girilmişse). */
+const OTO_ANAHTAR = "thm_oto_son";
+let aiYuklendi = false, otoDeneme = false;
+async function otoTetik() {
+  if (otoDeneme || !aiYuklendi || !adminMi() || !ghAnahtar()) return;
+  if (aiKuponlar.some(k => k.dateKey === dayKey(0))) return;
+  if (dk(nowHM()) < 8 * 60 + 30) return;
+  let son = 0;
+  try { son = Number(localStorage.getItem(OTO_ANAHTAR)) || 0; } catch { /* */ }
+  if (Date.now() - son < 30 * 60000) return;
+  otoDeneme = true; // bu sayfa açılışında bir kez
+  try { localStorage.setItem(OTO_ANAHTAR, String(Date.now())); } catch { /* */ }
+  const s = await ghDispatch("fetch-nesine.yml", { force: "false" });
+  if (s === "ok") otoNot = "Bugünün kuponları henüz oluşmamıştı; GitHub çalıştırıldı. 1–2 dakika içinde burada görünür.";
+  else otoNot = "Bugünün kuponları henüz yok ve GitHub otomatik başlatılamadı (" + s + "). GitHub'da Actions → Nesine bülteni → Run workflow ile elle çalıştırabilirsin.";
+  renderAI();
+}
+let otoNot = "";
 
 async function sor(metin, mod) {
   if (!adminMi()) return;
@@ -650,10 +683,11 @@ function kuponKarti(k) {
 function aiDurumHtml() {
   const bugun = dayKey(0);
   const bugunVar = aiKuponlar.some(k => k.dateKey === bugun);
-  if (bugunVar || !aiDurum) return "";
-  const hata = aiDurum.ok === false;
-  return `<div class="thm-durum uyari"><b>Bugünün kuponları henüz yok.</b> ${hata ? "Son çalışma hatası: " + esc(aiDurum.message || "") : "Son çalışma: " + esc(aiDurum.message || "") }
-    <br><small>Son deneme: ${fmtTime(aiDurum.lastRun)}. Sistem sabah 08:07-10:47 arasında 20 dakikada bir otomatik tekrar dener.</small></div>`;
+  if (bugunVar || (!aiDurum && !otoNot)) return "";
+  const hata = aiDurum && aiDurum.ok === false;
+  const son = aiDurum ? `${hata ? "Son çalışma hatası: " + esc(aiDurum.message || "") : "Son çalışma: " + esc(aiDurum.message || "")}
+    <br><small>Son deneme: ${fmtTime(aiDurum.lastRun)}. Sistem sabah 08:07'den itibaren yarım saatte bir otomatik dener.</small>` : "";
+  return `<div class="thm-durum uyari"><b>Bugünün kuponları henüz yok.</b> ${son}${otoNot ? `<br><small>${esc(otoNot)}</small>` : ""}</div>`;
 }
 
 function renderAI() {
@@ -727,7 +761,9 @@ function baslat() {
     onSnapshot(query(collection(db, "aiCoupons"), orderBy("dateKey", "desc"), limit(200)), snap => {
       aiKuponlar = snap.docs.map(d => ({ id: d.id, ...d.data() }))
         .sort((a, b) => (b.dateKey || "").localeCompare(a.dateKey || "") || (a.slot || 0) - (b.slot || 0));
+      aiYuklendi = true;
       renderAI();
+      otoTetik();
     }, err => console.error("aiCoupons okunamadı:", err));
   });
 }
