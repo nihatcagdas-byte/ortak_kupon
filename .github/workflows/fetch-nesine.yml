@@ -2,9 +2,10 @@ name: Nesine bülteni ve AI kuponları
 
 on:
   schedule:
-    # GitHub zamanlayıcısı saatlerce gecikebildiği için sabah 08:07-10:47 (TR) arasında 20 dakikada bir denenir.
-    # İş bittiyse sonraki denemeler hemen çıkar (bülten taze ise Nesine'ye tekrar istek atılmaz, kuponlar varsa üretilmez).
-    - cron: "7,27,47 5-7 * * *"
+    # GitHub zamanlayıcısı yoğunlukta saatlerce geciktirebiliyor veya atlayabiliyor; bu yüzden sabah 08:07'den
+    # öğleden sonra 15:37'ye (TR) kadar yarım saatte bir denenir. İş bittiyse sonraki denemeler saniyeler içinde çıkar
+    # (bülten tazeyse Nesine'ye tekrar istek atılmaz, kuponlar varsa yeniden üretilmez).
+    - cron: "7,37 5-12 * * *"
   workflow_dispatch:      # elle de çalıştırılabilir
     inputs:
       force:
