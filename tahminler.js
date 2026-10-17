@@ -369,7 +369,7 @@ function sekmeGorunurluk() {
   if (!btn) return;
   const izinli = adminMi();
   btn.hidden = !izinli;
-  if (izinli) { sohbetBaslat(); otoTetik(); }
+  if (izinli) { sohbetBaslat(); otoTetik(); otoSonuclandir(); }
   btn.style.display = izinli ? "" : "none";
   if (!izinli && tahminRoot && tahminRoot.classList.contains("active")) {
     tahminRoot.classList.remove("active");
@@ -460,6 +460,33 @@ async function otoTetik() {
   renderAI();
 }
 let otoNot = "";
+
+/* Aynı güvence sonuçlandırma için: geçmiş günlerin kuponları hâlâ "Açık" ise (GitHub gece çalışmasını
+   geciktirdi/atladı) Nihat siteyi açtığında sonuçlandırma iş akışı başlatılır (en fazla saatte bir). */
+let otoSonucDeneme = false, otoSonucNot = "";
+async function otoSonuclandir() {
+  if (otoSonucDeneme || !aiYuklendi || !adminMi() || !ghAnahtar()) return;
+  const bugun = dayKey(0);
+  if (!aiKuponlar.some(k => kuponDurumu(k) === "open" && k.dateKey < bugun)) return;
+  let son = 0;
+  try { son = Number(localStorage.getItem("thm_oto_sonuc")) || 0; } catch { /* */ }
+  if (Date.now() - son < 60 * 60000) return;
+  otoSonucDeneme = true;
+  try { localStorage.setItem("thm_oto_sonuc", String(Date.now())); } catch { /* */ }
+  const s = await ghDispatch("settle-coupons.yml", {});
+  otoSonucNot = s === "ok"
+    ? "Sonuçlandırma GitHub'da başlatıldı; 1–2 dakika sonra sayfayı yenile."
+    : "Sonuçlandırma otomatik başlatılamadı (" + s + "). GitHub'da Actions → AI kuponlarını sonuçlandır → Run workflow ile elle çalıştırabilirsin.";
+  renderAI();
+}
+function sonucDurumHtml() {
+  const bugun = dayKey(0);
+  const bekleyen = aiKuponlar.filter(k => kuponDurumu(k) === "open" && k.dateKey < bugun);
+  if (!bekleyen.length) return "";
+  const d = aiDurum || {};
+  const son = d.lastSettle ? `Son sonuçlandırma: ${fmtTime(d.lastSettle)}${d.settleOk === false ? " (hata: " + esc(d.settleMessage || "") + ")" : d.settleMessage ? " (" + esc(d.settleMessage) + ")" : ""}.` : "Sonuçlandırma henüz hiç çalışmamış.";
+  return `<div class="thm-durum uyari"><b>${bekleyen.length} geçmiş kupon henüz sonuçlanmadı.</b> Bitmiş maçlar her gece 00:30'dan itibaren işlenir; GitHub gecikirse birkaç saat sürebilir.<br><small>${son}${otoSonucNot ? " " + esc(otoSonucNot) : ""}</small></div>`;
+}
 
 async function sor(metin, mod) {
   if (!adminMi()) return;
@@ -712,7 +739,7 @@ function renderAI() {
     `<tr><td>${esc(pz)}</td><td>${v.n}</td><td>${yuzde(v.t / v.n)}</td></tr>`).join("");
 
   kutu.innerHTML = `
-    ${aiDurumHtml()}
+    ${aiDurumHtml()}${sonucDurumHtml()}
     <div class="thm-stat">
       <div><i>Kupon</i><b>${s.toplam}</b></div>
       <div><i>Sonuçlanan</i><b>${s.sonuclanan}</b></div>
@@ -764,6 +791,7 @@ function baslat() {
       aiYuklendi = true;
       renderAI();
       otoTetik();
+      otoSonuclandir();
     }, err => console.error("aiCoupons okunamadı:", err));
   });
 }
