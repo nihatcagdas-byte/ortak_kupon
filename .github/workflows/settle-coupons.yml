@@ -2,7 +2,9 @@ name: AI kuponlarını sonuçlandır
 
 on:
   schedule:
-    - cron: "30 21 * * *"   # 00:30 Türkiye saati
+    # GitHub zamanlayıcısı gecikebilir/atlayabilir: gece 00:30 ve 02:30, sabah ve gün içinde tekrar denenir
+    # (açık kupon yoksa saniyeler içinde biter, API-Football'a istek atmaz).
+    - cron: "30 21,23,3,6,9,12 * * *"   # 00:30, 02:30, 06:30, 09:30, 12:30, 15:30 Türkiye saati
   workflow_dispatch:
 
 permissions:
