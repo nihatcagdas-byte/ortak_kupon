@@ -1155,6 +1155,91 @@ function computeRawDebts() {
   return debtByUser;
 }
 
+// Bir kişinin borcunun kupon kupon dökümü (Detaylar paneli için).
+function computeDebtDetails(user) {
+  const items = [];
+  couponsCache.forEach(c => {
+    if (c.fundingSource !== "pool") return;
+    if (couponStatusInfo(c).key !== "lost") return;
+    const roster = couponRoster(c);
+    const winners = roster.filter(u => c.results && c.results[u] === "tuttu");
+    const losers = roster.filter(u => c.results && c.results[u] === "tutmadi");
+    if (losers.length === 0 || winners.length === 0) return;
+    if (!losers.includes(user)) return;
+    const winnersStakeTotal = winners.reduce((sum, u) => sum + Number((c.matches[u] && c.matches[u].amount) || 0), 0);
+    items.push({
+      coupon: c,
+      mine: c.matches[user] || null,
+      winners: winners.map(u => ({ user: u, amount: Number((c.matches[u] && c.matches[u].amount) || 0) })),
+      losers,
+      winnersStakeTotal,
+      share: winnersStakeTotal / losers.length
+    });
+  });
+  items.sort((a, b) => String(b.coupon.dateKey || "").localeCompare(String(a.coupon.dateKey || "")));
+  return items;
+}
+
+const debtOpen = new Set();   // "Detaylar" açık olan kişiler (yeniden çizimde korunur)
+
+function ensureDebtStyle() {
+  if (document.getElementById("debt-detail-style")) return;
+  const st = document.createElement("style");
+  st.id = "debt-detail-style";
+  st.textContent = `
+    .debt-detail-btn{background:transparent;border:1px solid currentColor;border-radius:8px;padding:4px 10px;font-size:.78rem;cursor:pointer;color:inherit;opacity:.85}
+    .debt-detail-btn:hover{opacity:1}
+    .debt-detail{margin:2px 0 10px;padding:10px 12px;border-radius:10px;background:rgba(128,128,128,.10);font-size:.88rem;line-height:1.45}
+    .debt-detail .dd-sum{display:flex;flex-wrap:wrap;gap:6px 14px;margin-bottom:8px;font-weight:600}
+    .debt-detail .dd-item{padding:8px 0;border-top:1px solid rgba(128,128,128,.25)}
+    .debt-detail .dd-head{display:flex;justify-content:space-between;gap:8px;font-weight:600}
+    .debt-detail .dd-loss{color:#e5484d;white-space:nowrap}
+    .debt-detail .dd-meta{opacity:.8;font-size:.82rem}
+    .debt-detail .dd-pay{color:#2e9e5b}
+    .debt-detail .dd-empty{opacity:.75}
+  `;
+  document.head.appendChild(st);
+}
+
+function debtDetailHtml(user) {
+  const items = computeDebtDetails(user);
+  const raw = items.reduce((s, i) => s + i.share, 0);
+  const pays = paymentsCache.filter(p => p.type === "debt_payment" && p.user === user);
+  const paid = pays.reduce((s, p) => s + Number(p.amount || 0), 0);
+  const left = Math.max(0, raw - paid);
+  if (items.length === 0 && pays.length === 0) {
+    return `<div class="dd-empty">${escapeHtml(user)} için kayıtlı borç yok.</div>`;
+  }
+  const dateTxt = (k) => { if (!k) return "?"; const [y, m, d] = String(k).split("-"); return `${d}.${m}.${y}`; };
+  const rows = items.map(i => {
+    const c = i.coupon, m = i.mine;
+    const w = i.winners.map(x => `${escapeHtml(x.user)} (${x.amount.toFixed(0)}₺)`).join(", ");
+    const shared = i.losers.length > 1 ? ` · ${i.losers.length} kişi tutturamadı (${i.losers.map(escapeHtml).join(", ")}), borç bölüşüldü` : "";
+    return `
+      <div class="dd-item">
+        <div class="dd-head">
+          <span>${escapeHtml(c.displayName || "Kupon")} · ${dateTxt(c.dateKey)}</span>
+          <span class="dd-loss">-${i.share.toFixed(0)}₺</span>
+        </div>
+        ${m ? `<div class="dd-meta">Maç: ${escapeHtml(m.teams || "?")}${m.day || m.time ? ` (${escapeHtml([m.day, m.time].filter(Boolean).join(" "))})` : ""}</div>
+        <div class="dd-meta">Tahmin: ${escapeHtml(String(m.prediction || "?"))} · Oran ${escapeHtml(String(m.odds || "?"))} · Yatırdığı: ${Number(m.amount || 0).toFixed(0)}₺ · <strong>Tutmadı</strong></div>` : ""}
+        <div class="dd-meta">Tutturanlar: ${w} → toplam ${i.winnersStakeTotal.toFixed(0)}₺${shared}</div>
+      </div>`;
+  }).join("");
+  const payRows = pays.map(p => `
+      <div class="dd-item">
+        <div class="dd-head"><span>Borç ödemesi · ${formatTimestamp(p.date)}</span><span class="dd-pay">+${Number(p.amount).toFixed(0)}₺</span></div>
+        <div class="dd-meta">Kaydeden: ${escapeHtml(p.recordedBy || "?")}</div>
+      </div>`).join("");
+  return `
+    <div class="dd-sum">
+      <span>Toplam borç: ${raw.toFixed(0)}₺</span>
+      <span>Ödenen: ${paid.toFixed(0)}₺</span>
+      <span>Kalan: ${left.toFixed(0)}₺</span>
+    </div>
+    ${rows}${payRows}`;
+}
+
 function paymentsSum(type, user) {
   return paymentsCache
     .filter(p => p.type === type && p.user === user)
@@ -1244,10 +1329,25 @@ function renderDebtAndShare() {
       <span class="simple-row-name">${u}</span>
       <span class="simple-row-actions">
         <span class="simple-row-value ${cls}">${debt > 0 ? "-" : ""}${debt.toFixed(0)}₺</span>
+        <button class="debt-detail-btn" data-detail-user="${escapeHtml(u)}">${debtOpen.has(u) ? "Gizle" : "Detaylar"}</button>
         ${isAdmin() && debt > 0 ? `<button class="pay-btn" data-type="debt_payment" data-user="${u}" data-amount="${debt}">Borç Ödendi</button>` : ""}
       </span>
     `;
     debtList.appendChild(row);
+    if (debtOpen.has(u)) {
+      const det = document.createElement("div");
+      det.className = "debt-detail";
+      det.innerHTML = debtDetailHtml(u);
+      debtList.appendChild(det);
+    }
+  });
+  ensureDebtStyle();
+  debtList.querySelectorAll(".debt-detail-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const u = btn.dataset.detailUser;
+      if (debtOpen.has(u)) debtOpen.delete(u); else debtOpen.add(u);
+      renderDebtAndShare();
+    });
   });
 
   shareList.innerHTML = "";
