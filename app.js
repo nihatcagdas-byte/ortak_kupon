@@ -1269,18 +1269,25 @@ function subscribePayments() {
 async function recordPayment(type, user, defaultAmount) {
   const isDebt = type === "debt_payment";
   const input = window.prompt(
-    `${user} için ${isDebt ? "borç ödemesi" : "pay ödemesi"} tutarı (₺):`,
+    isDebt
+      ? `${user} toplam ${Math.round(defaultAmount)}₺ borçlu.\nBugün ödenen tutarı yazın (tamamı veya bir kısmı, ₺):`
+      : `${user} için pay ödemesi tutarı (₺):`,
     String(Math.round(defaultAmount))
   );
   if (input === null) return;
   const amount = parseFloat(String(input).replace(",", "."));
   if (isNaN(amount) || amount <= 0) { showToast("Geçersiz tutar"); return; }
+  if (isDebt && amount > defaultAmount + 0.5) {
+    showToast(`Tutar borçtan fazla olamaz (${Math.round(defaultAmount)}₺)`);
+    return;
+  }
   if (!isDebt && amount > poolBalance) {
     showToast(`Kasada yeterli bakiye yok (${poolBalance.toFixed(0)}₺)`);
     return;
   }
+  const kalan = Math.max(0, defaultAmount - amount);
   const msg = isDebt
-    ? `${user} kasaya ${amount}₺ borç ödedi. Kaydedilsin mi?`
+    ? `${user} kasaya ${amount}₺ borç ödedi.${kalan > 0.5 ? ` Kalan borç: ${Math.round(kalan)}₺.` : " Borç tamamen kapanacak."} Kaydedilsin mi?`
     : `${user} kişisine kasadan ${amount}₺ ödendi. Kaydedilsin mi?`;
   if (!window.confirm(msg)) return;
   try {
@@ -1330,7 +1337,7 @@ function renderDebtAndShare() {
       <span class="simple-row-actions">
         <span class="simple-row-value ${cls}">${debt > 0 ? "-" : ""}${debt.toFixed(0)}₺</span>
         <button class="debt-detail-btn" data-detail-user="${escapeHtml(u)}">${debtOpen.has(u) ? "Gizle" : "Detaylar"}</button>
-        ${isAdmin() && debt > 0 ? `<button class="pay-btn" data-type="debt_payment" data-user="${u}" data-amount="${debt}">Borç Ödendi</button>` : ""}
+        ${isAdmin() && debt > 0 ? `<button class="pay-btn" data-type="debt_payment" data-user="${u}" data-amount="${debt}">Borç Öde</button>` : ""}
       </span>
     `;
     debtList.appendChild(row);
