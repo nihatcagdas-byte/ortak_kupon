@@ -1176,8 +1176,19 @@ function computeDebtDetails(user) {
       share: winnersStakeTotal / losers.length
     });
   });
-  items.sort((a, b) => String(b.coupon.dateKey || "").localeCompare(String(a.coupon.dateKey || "")));
-  return items;
+  // Yapılan borç ödemeleri en eski borçtan başlayarak kapatılır; tamamen ödenen
+  // kuponlar listeden çıkar, sadece hâlâ ödenmemiş (veya kısmen ödenmiş) olanlar kalır.
+  items.sort((a, b) => String(a.coupon.dateKey || "").localeCompare(String(b.coupon.dateKey || "")));
+  let paidLeft = paymentsSum("debt_payment", user);
+  const open = [];
+  items.forEach(i => {
+    const covered = Math.min(paidLeft, i.share);
+    paidLeft -= covered;
+    const remaining = i.share - covered;
+    if (remaining > 0.005) open.push({ ...i, covered, remaining });
+  });
+  open.reverse(); // en yeni üstte
+  return open;
 }
 
 const debtOpen = new Set();   // "Detaylar" açık olan kişiler (yeniden çizimde korunur)
@@ -1203,41 +1214,30 @@ function ensureDebtStyle() {
 
 function debtDetailHtml(user) {
   const items = computeDebtDetails(user);
-  const raw = items.reduce((s, i) => s + i.share, 0);
-  const pays = paymentsCache.filter(p => p.type === "debt_payment" && p.user === user);
-  const paid = pays.reduce((s, p) => s + Number(p.amount || 0), 0);
-  const left = Math.max(0, raw - paid);
-  if (items.length === 0 && pays.length === 0) {
-    return `<div class="dd-empty">${escapeHtml(user)} için kayıtlı borç yok.</div>`;
+  const left = items.reduce((s, i) => s + i.remaining, 0);
+  if (items.length === 0) {
+    return `<div class="dd-empty">${escapeHtml(user)} için ödenmemiş borç yok.</div>`;
   }
   const dateTxt = (k) => { if (!k) return "?"; const [y, m, d] = String(k).split("-"); return `${d}.${m}.${y}`; };
   const rows = items.map(i => {
     const c = i.coupon, m = i.mine;
     const w = i.winners.map(x => `${escapeHtml(x.user)} (${x.amount.toFixed(0)}₺)`).join(", ");
     const shared = i.losers.length > 1 ? ` · ${i.losers.length} kişi tutturamadı (${i.losers.map(escapeHtml).join(", ")}), borç bölüşüldü` : "";
+    const part = i.covered > 0.005 ? ` · ${i.covered.toFixed(0)}₺ ödenmiş, kalan ${i.remaining.toFixed(0)}₺` : "";
     return `
       <div class="dd-item">
         <div class="dd-head">
           <span>${escapeHtml(c.displayName || "Kupon")} · ${dateTxt(c.dateKey)}</span>
-          <span class="dd-loss">-${i.share.toFixed(0)}₺</span>
+          <span class="dd-loss">-${i.remaining.toFixed(0)}₺</span>
         </div>
         ${m ? `<div class="dd-meta">Maç: ${escapeHtml(m.teams || "?")}${m.day || m.time ? ` (${escapeHtml([m.day, m.time].filter(Boolean).join(" "))})` : ""}</div>
         <div class="dd-meta">Tahmin: ${escapeHtml(String(m.prediction || "?"))} · Oran ${escapeHtml(String(m.odds || "?"))} · Yatırdığı: ${Number(m.amount || 0).toFixed(0)}₺ · <strong>Tutmadı</strong></div>` : ""}
-        <div class="dd-meta">Tutturanlar: ${w} → toplam ${i.winnersStakeTotal.toFixed(0)}₺${shared}</div>
+        <div class="dd-meta">Tutturanlar: ${w} → toplam ${i.winnersStakeTotal.toFixed(0)}₺${shared}${part}</div>
       </div>`;
   }).join("");
-  const payRows = pays.map(p => `
-      <div class="dd-item">
-        <div class="dd-head"><span>Borç ödemesi · ${formatTimestamp(p.date)}</span><span class="dd-pay">+${Number(p.amount).toFixed(0)}₺</span></div>
-        <div class="dd-meta">Kaydeden: ${escapeHtml(p.recordedBy || "?")}</div>
-      </div>`).join("");
   return `
-    <div class="dd-sum">
-      <span>Toplam borç: ${raw.toFixed(0)}₺</span>
-      <span>Ödenen: ${paid.toFixed(0)}₺</span>
-      <span>Kalan: ${left.toFixed(0)}₺</span>
-    </div>
-    ${rows}${payRows}`;
+    <div class="dd-sum"><span>Ödenmemiş borç: ${left.toFixed(0)}₺</span></div>
+    ${rows}`;
 }
 
 function paymentsSum(type, user) {
