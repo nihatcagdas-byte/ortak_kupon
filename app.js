@@ -1877,6 +1877,7 @@ function ensureSistemStyle() {
   const st = document.createElement("style");
   st.id = "sistem-style";
   st.textContent = `
+    .sm-btn{display:inline-block !important;visibility:visible !important;opacity:1 !important;cursor:pointer;padding:6px 12px;border-radius:8px;border:1px solid #7c4dff;background:rgba(124,77,255,.15);color:inherit;font:inherit;font-size:.82rem;font-weight:600;white-space:nowrap;align-self:center}
     .sm-badge{display:inline-block;font-size:.62rem;letter-spacing:.06em;font-weight:700;padding:2px 7px;border-radius:999px;background:#7c4dff;color:#fff;vertical-align:middle}
     .sm-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:flex-start;justify-content:center;padding:16px;overflow:auto;z-index:9999}
     .sm-card{width:100%;max-width:440px;margin:auto;border-radius:14px;padding:18px 16px;box-shadow:0 10px 40px rgba(0,0,0,.4)}
@@ -1997,12 +1998,12 @@ function sistemSlot(c, user, i) {
       <span class="slot-num">${i + 1}</span>
       <div class="slot-body">
         <div class="slot-player">${escapeHtml(user)}</div>
-        <div class="slot-empty-label">${isSelf ? `${SISTEM_BACAK} maçını girmek için dokun →` : "Maçlar bekleniyor…"}</div>
+        <div class="slot-empty-label">${isSelf ? `${SISTEM_BACAK} maçını girmek için dokun →` : isAdmin() ? `Maçlar bekleniyor… (Admin: ${escapeHtml(user)} adına girebilirsin)` : "Maçlar bekleniyor…"}</div>
       </div>
-      ${isAdmin() && !isSelf ? `<button class="slot-fill-btn">Doldur</button>` : ""}
+      ${isAdmin() && !isSelf ? `<button type="button" class="sm-btn sm-fill">Doldur</button>` : ""}
     `;
-    if (isSelf) slot.addEventListener("click", () => sistemMacModal(c.id, user, null));
-    const fb = slot.querySelector(".slot-fill-btn");
+    if (isSelf || isAdmin()) { slot.style.cursor = "pointer"; slot.addEventListener("click", () => sistemMacModal(c.id, user, null)); }
+    const fb = slot.querySelector(".sm-fill");
     if (fb) fb.addEventListener("click", (e) => { e.stopPropagation(); sistemMacModal(c.id, user, null); });
     return slot;
   }
@@ -2027,9 +2028,9 @@ function sistemSlot(c, user, i) {
       <div class="slot-player">${escapeHtml(user)}</div>
       ${lines}
     </div>
-    ${canEdit ? `<button class="slot-edit-btn" title="Düzenle">✎</button>` : ""}
+    ${canEdit ? `<button type="button" class="sm-btn sm-edit" title="Düzenle">✎ Düzenle</button>` : ""}
   `;
-  if (canEdit) slot.querySelector(".slot-edit-btn").addEventListener("click", () => sistemMacModal(c.id, user, m));
+  if (canEdit) slot.querySelector(".sm-edit").addEventListener("click", (e) => { e.stopPropagation(); sistemMacModal(c.id, user, m); });
   return slot;
 }
 
