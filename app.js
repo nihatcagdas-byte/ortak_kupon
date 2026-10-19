@@ -606,6 +606,12 @@ function couponRoster(c) {
 }
 
 function couponTotals(c) {
+  if (isSistem(c)) {
+    const h = sistemHesap(c);
+    const prod = sistemBacaklar(c).reduce((p, l) => p * l.odds, 1);
+    const filledS = couponRoster(c).filter(u => c.matches && c.matches[u]).length;
+    return { totalStake: h.stake, totalOdds: prod, payout: h.payout != null ? h.payout : h.maxPayout, payoutReal: h.payout, filled: filledS };
+  }
   let totalStake = 0, totalOdds = 1, filled = 0;
   couponRoster(c).forEach(u => {
     const m = c.matches ? c.matches[u] : null;
@@ -628,6 +634,11 @@ function couponStatusInfo(c) {
   const filled = couponProgress(c);
   if (filled < roster.length) return { key: "open", label: "Açık" };
   if (!c.playedBy) return { key: "ready", label: "Hazır" };
+  if (isSistem(c)) {
+    const h = sistemHesap(c);
+    if (!h.tamam) return { key: "played", label: "Oynandı" };
+    return h.payout + 0.005 >= h.stake ? { key: "won", label: "Tuttu" } : { key: "lost", label: "Tutmadı" };
+  }
   const resultsFilled = roster.filter(u => c.results && c.results[u]).length;
   if (resultsFilled < roster.length) return { key: "played", label: "Oynandı" };
   const won = roster.every(u => c.results[u] === "tuttu");
@@ -647,14 +658,20 @@ function renderCouponList() {
     const totals = couponTotals(c);
     const row = document.createElement("div");
     row.className = "coupon-row";
+    const sis = isSistem(c);
+    const sh = sis ? sistemHesap(c) : null;
     row.innerHTML = `
       <div class="coupon-row-left">
         <div>
-          <div class="coupon-date">${c.displayName}</div>
-          <div class="coupon-progress">${filled}/${couponRoster(c).length} maç girildi${c.playedBy ? " · Oynatan: " + c.playedBy : ""}</div>
+          <div class="coupon-date">${c.displayName}${sis ? ' <span class="sm-badge">SİSTEM</span>' : ""}</div>
+          <div class="coupon-progress">${sis ? `${filled}/${couponRoster(c).length} kişi girdi (${sistemBacaklar(c).length} maç)` : `${filled}/${couponRoster(c).length} maç girildi`}${c.playedBy ? " · Oynatan: " + c.playedBy : ""}</div>
         </div>
       </div>
-      ${totals.filled > 0 ? `
+      ${sis ? (c.playedBy ? `
+        <div class="coupon-summary-inline">
+          <span class="coupon-summary-chip">${sh.stake.toFixed(0)}₺ · ${sh.ks.join("+")} sistem</span>
+          <span class="coupon-summary-chip coupon-summary-chip-win">${sh.payout != null ? "Gelen: " + sh.payout.toFixed(0) : "En çok: " + sh.maxPayout.toFixed(0)}₺</span>
+        </div>` : "") : totals.filled > 0 ? `
         <div class="coupon-summary-inline">
           <span class="coupon-summary-chip">${totals.totalStake}₺ yatırıldı</span>
           <span class="coupon-summary-chip coupon-summary-chip-win">Olası kazanç: ${totals.payout.toFixed(0)}₺</span>
@@ -707,7 +724,9 @@ function openCoupon(id) {
 }
 
 function renderCouponDetail(c) {
-  document.getElementById("coupon-title").textContent = c.displayName;
+  const titleEl = document.getElementById("coupon-title");
+  titleEl.textContent = c.displayName;
+  if (isSistem(c)) titleEl.insertAdjacentHTML("beforeend", ' <span class="sm-badge">SİSTEM</span>');
   const info = couponStatusInfo(c);
   const statusEl = document.getElementById("coupon-status");
   statusEl.textContent = info.label;
@@ -729,6 +748,7 @@ function renderCouponDetail(c) {
   const slotsEl = document.getElementById("match-slots");
   slotsEl.innerHTML = "";
   couponRoster(c).forEach((user, i) => {
+    if (isSistem(c)) { slotsEl.appendChild(sistemSlot(c, user, i)); return; }
     const m = c.matches ? c.matches[user] : null;
     const result = c.results ? c.results[user] : null;
     const isSelf = user === currentUser;
@@ -777,6 +797,20 @@ function renderCouponDetail(c) {
 
   const summaryEl = document.getElementById("kupon-summary");
   const totals = couponTotals(c);
+  if (isSistem(c)) {
+    const sh = sistemHesap(c);
+    summaryEl.classList.remove("hidden");
+    summaryEl.innerHTML = c.playedBy ? `
+      <div class="kupon-summary-item"><div class="kupon-summary-value">${sh.stake.toFixed(0)}₺</div><div class="kupon-summary-label">Toplam Yatırım</div></div>
+      <div class="kupon-summary-item"><div class="kupon-summary-value">${sh.kolon}</div><div class="kupon-summary-label">Kolon (${sh.ks.join("+")})</div></div>
+      <div class="kupon-summary-item"><div class="kupon-summary-value">${(sh.payout != null ? sh.payout : sh.maxPayout).toFixed(0)}₺</div><div class="kupon-summary-label">${sh.payout != null ? "Gelen Kazanç" : "En Çok Kazanç"}</div></div>
+    ` : `
+      <div class="kupon-summary-item"><div class="kupon-summary-value">${sh.n}</div><div class="kupon-summary-label">Maç</div></div>
+      <div class="kupon-summary-item"><div class="kupon-summary-value">${totals.totalOdds.toFixed(2)}</div><div class="kupon-summary-label">Tümü Tutarsa Oran</div></div>
+    `;
+    renderTicketFooter(c, info);
+    return;
+  }
   if (totals.filled > 0) {
     summaryEl.classList.remove("hidden");
     summaryEl.innerHTML = `
@@ -802,6 +836,7 @@ function renderCouponDetail(c) {
 }
 
 function renderTicketFooter(c, info) {
+  if (isSistem(c)) { renderSistemFooter(c, info); return; }
   const footer = document.getElementById("ticket-footer");
   footer.innerHTML = "";
 
@@ -1057,13 +1092,11 @@ function computeUserStatsInRange(rangeStart, rangeEnd) {
     const d = parseDateKey(c.dateKey);
     if (d < rangeStart || d > rangeEnd) return;
     USERS.forEach(u => {
-      const m = c.matches ? c.matches[u] : null;
-      if (m) { stats[u].entered++; stats[u].amount += Number(m.amount || 0); }
-      const r = c.results ? c.results[u] : null;
-      if (r === "tuttu") {
-        stats[u].won++;
-        if (m) stats[u].wonOddsSum += Number(m.odds || 0);
-      }
+      userEntries(c, u).forEach(e => {
+        stats[u].entered++;
+        stats[u].amount += e.amount;
+        if (e.res === "tuttu") { stats[u].won++; stats[u].wonOddsSum += e.odds; }
+      });
     });
   });
 
@@ -1144,6 +1177,11 @@ function computeRawDebts() {
   couponsCache.forEach(c => {
     if (c.fundingSource !== "pool") return;
     if (couponStatusInfo(c).key !== "lost") return;
+    if (isSistem(c)) {
+      const b = sistemBorclar(c);
+      Object.keys(b.perUser).forEach(u => { if (b.perUser[u].debt > 0) debtByUser[u] = (debtByUser[u] || 0) + b.perUser[u].debt; });
+      return;
+    }
     const roster = couponRoster(c);
     const winners = roster.filter(u => c.results && c.results[u] === "tuttu");
     const losers = roster.filter(u => c.results && c.results[u] === "tutmadi");
@@ -1161,6 +1199,13 @@ function computeDebtDetails(user) {
   couponsCache.forEach(c => {
     if (c.fundingSource !== "pool") return;
     if (couponStatusInfo(c).key !== "lost") return;
+    if (isSistem(c)) {
+      const b = sistemBorclar(c);
+      const pu = b.perUser[user];
+      if (!pu || pu.debt <= 0) return;
+      items.push({ coupon: c, sistem: true, b, mine: c.matches[user] || null, share: pu.debt, failedLegs: pu.failedLegs });
+      return;
+    }
     const roster = couponRoster(c);
     const winners = roster.filter(u => c.results && c.results[u] === "tuttu");
     const losers = roster.filter(u => c.results && c.results[u] === "tutmadi");
@@ -1220,6 +1265,21 @@ function debtDetailHtml(user) {
   }
   const dateTxt = (k) => { if (!k) return "?"; const [y, m, d] = String(k).split("-"); return `${d}.${m}.${y}`; };
   const rows = items.map(i => {
+    if (i.sistem) {
+      const c = i.coupon, b = i.b;
+      const part2 = i.covered > 0.005 ? ` · ${i.covered.toFixed(0)}₺ ödenmiş, kalan ${i.remaining.toFixed(0)}₺` : "";
+      const bad = i.failedLegs.map(l => `${escapeHtml(l.teams)} (${escapeHtml(String(l.prediction || "?"))}, oran ${Number(l.odds).toFixed(2)})`).join("; ");
+      return `
+      <div class="dd-item">
+        <div class="dd-head">
+          <span>${escapeHtml(c.displayName || "Kupon")} · ${dateTxt(c.dateKey)} <span class="sm-badge">SİSTEM</span></span>
+          <span class="dd-loss">-${i.remaining.toFixed(0)}₺</span>
+        </div>
+        <div class="dd-meta">Sistem: ${b.ks.join("+")} · Yatırılan ${b.stake.toFixed(0)}₺ · Gelen ${b.payout.toFixed(0)}₺ · Zarar ${b.loss.toFixed(0)}₺</div>
+        <div class="dd-meta">Tutmayan maçların: ${bad}</div>
+        <div class="dd-meta">Toplam ${b.totalFailed} maç tutmadı, senin ${i.failedLegs.length} maçın → zarar payın ${i.failedLegs.length}/${b.totalFailed}${part2}</div>
+      </div>`;
+    }
     const c = i.coupon, m = i.mine;
     const w = i.winners.map(x => `${escapeHtml(x.user)} (${x.amount.toFixed(0)}₺)`).join(", ");
     const shared = i.losers.length > 1 ? ` · ${i.losers.length} kişi tutturamadı (${i.losers.map(escapeHtml).join(", ")}), borç bölüşüldü` : "";
@@ -1579,10 +1639,10 @@ function renderStats() {
   USERS.forEach(user => {
     let matchCount = 0, oddsSum = 0, oddsCount = 0, resultCount = 0, hitCount = 0, amountSum = 0;
     couponsCache.forEach(c => {
-      const m = c.matches ? c.matches[user] : null;
-      if (m) { matchCount++; oddsSum += Number(m.odds); oddsCount++; amountSum += Number(m.amount || 0); }
-      const r = c.results ? c.results[user] : null;
-      if (r) { resultCount++; if (r === "tuttu") hitCount++; }
+      userEntries(c, user).forEach(e => {
+        matchCount++; oddsSum += e.odds; oddsCount++; amountSum += e.amount;
+        if (e.res && e.res !== "iptal") { resultCount++; if (e.res === "tuttu") hitCount++; }
+      });
     });
     const avgOdds = oddsCount ? (oddsSum / oddsCount).toFixed(2) : "—";
     const hitRate = resultCount ? Math.round((hitCount / resultCount) * 100) : null;
@@ -1591,7 +1651,7 @@ function renderStats() {
     card.innerHTML = `
       <div class="player-card-name">${user}${user === ADMIN_USER ? " ★" : ""}</div>
       <div class="player-stat-line"><span>Girdiği maç</span><span>${matchCount}</span></div>
-      <div class="player-stat-line"><span>Toplam yatırım</span><span>${amountSum}₺</span></div>
+      <div class="player-stat-line"><span>Toplam yatırım</span><span>${Math.round(amountSum * 100) / 100}₺</span></div>
       <div class="player-stat-line"><span>Ortalama oran</span><span>${avgOdds}</span></div>
       <div class="player-stat-line"><span>Kendi isabet oranı</span><span>${hitRate === null ? "—" : "%" + hitRate}</span></div>
     `;
@@ -1614,9 +1674,10 @@ const RULES = [
   "Kuponu oynayan son kişi, kuponu kaydeder ve toplam kupon tutarını gruba yazar.",
   "Kuponda maçı kaybeden kişi veya kişiler, kazanan kişilerin kupon ücretini öder.",
   "Kimse, kendi tuttuğu takıma, garanti gördüğü maçlarda dahi oynayamaz.",
-  "Her ay en çok maç kaybeden kişi, bir kuponu tek başına ödeyerek oynar."
+  "Her ay en çok maç kaybeden kişi, bir kuponu tek başına ödeyerek oynar.",
+  "Sistem kuponunda her kişi 2 maç verir; oynayan kişi sistemi ve toplam tutarı seçer, para ortak kasadan çıkar. Kupon zararda biterse zarar, kişilerin tutmayan maç sayısına göre paylaşılır."
 ];
-const RULE_EMOJIS = ["1️⃣","2️⃣","3️⃣","4️⃣","5️⃣","6️⃣"];
+const RULE_EMOJIS = ["1️⃣","2️⃣","3️⃣","4️⃣","5️⃣","6️⃣","7️⃣"];
 
 function renderRules() {
   const list = document.getElementById("rules-list");
@@ -1712,6 +1773,580 @@ document.getElementById("back-to-home").addEventListener("click", () => {
 
 document.getElementById("close-modal").addEventListener("click", closeMatchModal);
 document.getElementById("submit-match").addEventListener("click", submitMatch);
+
+/* ============================================================
+   SİSTEM KUPON
+   3-4 kişi, kişi başı 2 maç; oynayan kişi sistemi (3+4+5+6 gibi) ve toplam
+   tutarı seçer, para HER ZAMAN ortak kasadan çıkar. Zarar, tutmayan maç
+   sayısına göre paylaştırılır.
+   ============================================================ */
+const SISTEM_BACAK = 2;
+const sistemForm = { couponId: null, ks: new Set(), stake: "", edit: false };
+
+function isSistem(c) { return !!c && c.tur === "sistem"; }
+
+function comb(n, k) {
+  if (k < 0 || k > n) return 0;
+  let r = 1;
+  for (let i = 1; i <= k; i++) r = (r * (n - k + i)) / i;
+  return Math.round(r);
+}
+// e[k] = oranlardan k tanesinin çarpımlarının toplamı (her k'lı kolonun getirisi / birim)
+function elemSym(odds) {
+  const e = [1];
+  odds.forEach(o => { for (let k = e.length; k >= 1; k--) e[k] = (e[k] || 0) + e[k - 1] * o; });
+  return e;
+}
+
+function sistemBacaklar(c) {
+  const out = [];
+  couponRoster(c).forEach(u => {
+    const m = c.matches ? c.matches[u] : null;
+    if (!m || !m.legs) return;
+    m.legs.forEach((l, i) => out.push({
+      user: u, i, odds: Number(l.odds) || 1, teams: l.teams, day: l.day, time: l.time, prediction: l.prediction,
+      res: (c.legRes && c.legRes[u] && c.legRes[u][i]) || null
+    }));
+  });
+  return out;
+}
+
+function sistemHesap(c) {
+  const legs = sistemBacaklar(c);
+  const n = legs.length;
+  const s = c.sistem || {};
+  const ks = (s.ks || []).map(Number).filter(k => k >= 2 && k <= n).sort((a, b) => a - b);
+  const stake = Number(s.stake) || 0;
+  const kolon = ks.reduce((t, k) => t + comb(n, k), 0);
+  const unit = kolon ? stake / kolon : 0;
+  const eAll = elemSym(legs.map(l => l.odds));
+  const maxPayout = unit * ks.reduce((t, k) => t + (eAll[k] || 0), 0);
+  const tamam = n > 0 && legs.every(l => l.res);
+  const win = legs.filter(l => l.res === "tuttu" || l.res === "iptal").map(l => (l.res === "iptal" ? 1 : l.odds));
+  const eW = elemSym(win);
+  const hesap = unit * ks.reduce((t, k) => t + (eW[k] || 0), 0);
+  const tutanKolon = ks.reduce((t, k) => t + comb(win.length, k), 0);
+  const manuel = s.odenenKazanc !== undefined && s.odenenKazanc !== null && s.odenenKazanc !== "" ? Number(s.odenenKazanc) : null;
+  const payout = tamam ? Math.round((manuel !== null && !isNaN(manuel) ? manuel : hesap) * 100) / 100 : null;
+  return { legs, n, ks, stake, kolon, unit, maxPayout, tamam, hesap, manuel, payout, tutanKolon };
+}
+
+// Zarar = yatırılan − gelen. Zarar, tutmayan maç sayısına göre bölünür.
+function sistemBorclar(c) {
+  const h = sistemHesap(c);
+  const res = { ks: h.ks, stake: h.stake, payout: h.payout || 0, loss: 0, totalFailed: 0, perUser: {} };
+  if (!h.tamam) return res;
+  res.loss = Math.max(0, h.stake - h.payout);
+  const failed = h.legs.filter(l => l.res === "tutmadi");
+  res.totalFailed = failed.length;
+  failed.forEach(l => {
+    const pu = res.perUser[l.user] || (res.perUser[l.user] = { failedLegs: [], debt: 0 });
+    pu.failedLegs.push(l);
+  });
+  if (res.loss > 0.005 && res.totalFailed > 0) {
+    Object.keys(res.perUser).forEach(u => {
+      res.perUser[u].debt = res.loss * res.perUser[u].failedLegs.length / res.totalFailed;
+    });
+  } else {
+    Object.keys(res.perUser).forEach(u => { res.perUser[u].debt = 0; });
+  }
+  return res;
+}
+
+// İstatistikler için: bir kişinin bir kupondaki "maç" kayıtları (sistemde her bacak ayrı sayılır)
+function userEntries(c, u) {
+  const m = c.matches ? c.matches[u] : null;
+  if (!m) return [];
+  if (isSistem(c) && m.legs) {
+    const nTot = sistemBacaklar(c).length || 1;
+    const stake = c.playedBy ? Number(c.sistem && c.sistem.stake) || 0 : 0;
+    return m.legs.map((l, i) => ({
+      odds: Number(l.odds) || 0,
+      amount: stake / nTot,
+      res: (c.legRes && c.legRes[u] && c.legRes[u][i]) || null
+    }));
+  }
+  return [{ odds: Number(m.odds) || 0, amount: Number(m.amount || 0), res: c.results ? c.results[u] || null : null }];
+}
+
+const trTL = (x) => (Math.round(x * 100) / 100).toLocaleString("tr-TR", { maximumFractionDigits: 2 });
+
+/* ---------- stil ---------- */
+function ensureSistemStyle() {
+  if (document.getElementById("sistem-style")) return;
+  const st = document.createElement("style");
+  st.id = "sistem-style";
+  st.textContent = `
+    .sm-badge{display:inline-block;font-size:.62rem;letter-spacing:.06em;font-weight:700;padding:2px 7px;border-radius:999px;background:#7c4dff;color:#fff;vertical-align:middle}
+    .sm-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:flex-start;justify-content:center;padding:16px;overflow:auto;z-index:9999}
+    .sm-card{width:100%;max-width:440px;margin:auto;border-radius:14px;padding:18px 16px;box-shadow:0 10px 40px rgba(0,0,0,.4)}
+    .sm-card h3{margin:0 0 4px;font-size:1.05rem}
+    .sm-card .sm-sub{opacity:.75;font-size:.85rem;margin:0 0 12px}
+    .sm-leg{border:1px solid rgba(128,128,128,.35);border-radius:10px;padding:10px;margin:10px 0}
+    .sm-leg-t{font-weight:700;font-size:.82rem;margin-bottom:6px;opacity:.85}
+    .sm-row{display:flex;gap:8px}
+    .sm-row>*{flex:1;min-width:0}
+    .sm-card input[type=text],.sm-card input[type=number],.sm-card input[type=date],.sm-card input[type=time],.sm-form input[type=number]{width:100%;box-sizing:border-box;padding:9px 10px;margin:3px 0 7px;border-radius:8px;border:1px solid rgba(128,128,128,.5);background:rgba(128,128,128,.10);color:inherit;font:inherit}
+    .sm-lbl{display:block;font-size:.78rem;opacity:.8}
+    .sm-actions{display:flex;gap:8px;margin-top:10px}
+    .sm-actions button{flex:1}
+    .sm-people{display:flex;flex-direction:column;gap:6px;margin:8px 0}
+    .sm-people label,.sm-k{display:flex;align-items:center;gap:8px;padding:9px 10px;border:1px solid rgba(128,128,128,.4);border-radius:10px;cursor:pointer}
+    .sm-form{margin:8px 0}
+    .sm-ks{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin:8px 0}
+    .sm-k.on{border-color:#7c4dff;background:rgba(124,77,255,.15)}
+    .sm-preview{margin:8px 0;padding:10px 12px;border-radius:10px;background:rgba(128,128,128,.12);font-size:.88rem;line-height:1.5}
+    .sm-warn{color:#e5484d;font-weight:700}
+    .sm-leg-line{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:4px 0;border-top:1px dashed rgba(128,128,128,.3)}
+    .sm-leg-line:first-child{border-top:none}
+    .sm-res{display:flex;gap:4px;flex-wrap:wrap}
+    .sm-res button{padding:5px 9px;border-radius:8px;border:1px solid rgba(128,128,128,.5);background:transparent;color:inherit;font-size:.78rem;cursor:pointer}
+    .sm-res button.on-w{background:#2e9e5b;border-color:#2e9e5b;color:#fff}
+    .sm-res button.on-l{background:#e5484d;border-color:#e5484d;color:#fff}
+    .sm-res button.on-i{background:#888;border-color:#888;color:#fff}
+    .sm-box{margin:10px 0;padding:10px 12px;border-radius:10px;background:rgba(128,128,128,.12);font-size:.88rem;line-height:1.55}
+    .sm-box strong{font-weight:700}
+  `;
+  document.head.appendChild(st);
+}
+
+/* ---------- modal iskeleti ---------- */
+function sistemModalKapat() {
+  const ov = document.getElementById("sm-overlay");
+  if (ov) ov.remove();
+}
+function sistemModalAc(html) {
+  ensureSistemStyle();
+  sistemModalKapat();
+  let bg = "#fff", fg = "#111";
+  try {
+    const cs = getComputedStyle(document.body);
+    if (cs.backgroundColor && !/rgba\(0, 0, 0, 0\)|transparent/.test(cs.backgroundColor)) bg = cs.backgroundColor;
+    if (cs.color) fg = cs.color;
+  } catch (e) { /* varsayılan */ }
+  const ov = document.createElement("div");
+  ov.id = "sm-overlay";
+  ov.className = "sm-overlay";
+  ov.innerHTML = `<div class="sm-card" style="background:${bg};color:${fg}">${html}</div>`;
+  ov.addEventListener("click", (e) => { if (e.target === ov) sistemModalKapat(); });
+  document.body.appendChild(ov);
+  return ov;
+}
+
+/* ---------- yeni sistem kuponu ---------- */
+function yeniSistemModal() {
+  const ov = sistemModalAc(`
+    <h3>Yeni Sistem Kuponu</h3>
+    <p class="sm-sub">Katılacak kişileri seç. Herkes ${SISTEM_BACAK} maç girecek.</p>
+    <div class="sm-people">
+      ${USERS.map(u => `<label><input type="checkbox" value="${escapeHtml(u)}" checked> ${escapeHtml(u)}</label>`).join("")}
+    </div>
+    <div id="sm-err" class="sm-warn" style="display:none"></div>
+    <div class="sm-actions">
+      <button class="btn-secondary" id="sm-iptal">Vazgeç</button>
+      <button class="btn-primary" id="sm-olustur">Oluştur</button>
+    </div>
+  `);
+  ov.querySelector("#sm-iptal").addEventListener("click", sistemModalKapat);
+  ov.querySelector("#sm-olustur").addEventListener("click", async () => {
+    const secili = [...ov.querySelectorAll('.sm-people input:checked')].map(x => x.value);
+    const err = ov.querySelector("#sm-err");
+    if (secili.length < 2) { err.textContent = "En az 2 kişi seç."; err.style.display = "block"; return; }
+    if (secili.length * SISTEM_BACAK > 12) { err.textContent = "En fazla 6 kişi."; err.style.display = "block"; return; }
+    ov.querySelector("#sm-olustur").disabled = true;
+    try { await sistemKuponOlustur(secili); sistemModalKapat(); }
+    catch (e) { console.error(e); err.textContent = "Oluşturulamadı: " + (e.code || e.message); err.style.display = "block"; ov.querySelector("#sm-olustur").disabled = false; }
+  });
+}
+
+async function sistemKuponOlustur(katilimcilar) {
+  const now = new Date();
+  const dateKey = dateKeyFor(now);
+  const displayDate = displayDateFor(now);
+  const snap = await getDocs(query(collection(db, "coupons"), where("dateKey", "==", dateKey)));
+  let seq = snap.size + 1;
+  let docId = seq === 1 ? dateKey : `${dateKey}-${seq}`;
+  while ((await getDoc(doc(db, "coupons", docId))).exists()) {   // silinmiş kuponlardan kalan numara çakışması
+    seq++; docId = `${dateKey}-${seq}`;
+  }
+  const displayName = seq === 1 ? displayDate : `${displayDate} (${seq})`;
+  const matches = {}, results = {};
+  katilimcilar.forEach(u => { matches[u] = null; results[u] = null; });
+  await setDoc(doc(db, "coupons", docId), {
+    tur: "sistem", bacak: SISTEM_BACAK,
+    dateKey, seq, displayName,
+    createdAt: serverTimestamp(), createdBy: currentUser,
+    matches, results, legRes: {},
+    sistem: { ks: [], stake: 0 },
+    playedBy: null, playedAt: null
+  });
+  showToast(`${displayName} sistem kuponu açıldı`);
+  openCoupon(docId);
+}
+
+/* ---------- maç girişi (kişi başı 2 maç) ---------- */
+function sistemSlot(c, user, i) {
+  const m = c.matches ? c.matches[user] : null;
+  const isSelf = user === currentUser;
+  const selfCanEdit = isSelf && !c.playedBy;
+  const canEdit = isAdmin() || selfCanEdit;
+  const slot = document.createElement("div");
+  if (!m || !m.legs) {
+    slot.className = `match-slot slot-empty ${isSelf ? "slot-self" : ""}`;
+    slot.innerHTML = `
+      <span class="slot-num">${i + 1}</span>
+      <div class="slot-body">
+        <div class="slot-player">${escapeHtml(user)}</div>
+        <div class="slot-empty-label">${isSelf ? `${SISTEM_BACAK} maçını girmek için dokun →` : "Maçlar bekleniyor…"}</div>
+      </div>
+      ${isAdmin() && !isSelf ? `<button class="slot-fill-btn">Doldur</button>` : ""}
+    `;
+    if (isSelf) slot.addEventListener("click", () => sistemMacModal(c.id, user, null));
+    const fb = slot.querySelector(".slot-fill-btn");
+    if (fb) fb.addEventListener("click", (e) => { e.stopPropagation(); sistemMacModal(c.id, user, null); });
+    return slot;
+  }
+  slot.className = "match-slot";
+  const lines = m.legs.map((l, idx) => {
+    const r = (c.legRes && c.legRes[user] && c.legRes[user][idx]) || null;
+    const badge = r === "tuttu" ? `<span class="slot-result status-won">Tuttu</span>`
+      : r === "tutmadi" ? `<span class="slot-result status-lost">Tutmadı</span>`
+      : r === "iptal" ? `<span class="slot-result">İptal</span>` : "";
+    return `<div class="sm-leg-line">
+        <div>
+          <div class="slot-teams">${escapeHtml(l.teams)}</div>
+          ${l.day || l.time ? `<div class="slot-time">🗓 ${escapeHtml(l.day || "")} ${escapeHtml(l.time || "")}</div>` : ""}
+          <div class="slot-prediction">${escapeHtml(l.prediction)}</div>
+        </div>
+        <div style="text-align:right"><span class="slot-odds">${Number(l.odds).toFixed(2)}</span>${badge}</div>
+      </div>`;
+  }).join("");
+  slot.innerHTML = `
+    <span class="slot-num">${i + 1}</span>
+    <div class="slot-body" style="flex:1">
+      <div class="slot-player">${escapeHtml(user)}</div>
+      ${lines}
+    </div>
+    ${canEdit ? `<button class="slot-edit-btn" title="Düzenle">✎</button>` : ""}
+  `;
+  if (canEdit) slot.querySelector(".slot-edit-btn").addEventListener("click", () => sistemMacModal(c.id, user, m));
+  return slot;
+}
+
+function sistemMacModal(couponId, user, mevcut) {
+  const baslik = user === currentUser ? `${SISTEM_BACAK} maçını gir` : `${user} adına gir (Admin)`;
+  const legBlok = (i) => {
+    const l = (mevcut && mevcut.legs && mevcut.legs[i]) || {};
+    return `
+      <div class="sm-leg">
+        <div class="sm-leg-t">${i + 1}. Maç</div>
+        <label class="sm-lbl">Takımlar<input type="text" data-f="teams" data-i="${i}" value="${escapeHtml(l.teams || "")}" placeholder="Ev - Deplasman"></label>
+        <div class="sm-row">
+          <label class="sm-lbl">Gün<input type="date" data-f="dayIso" data-i="${i}" value="${escapeHtml(l.dayIso || "")}"></label>
+          <label class="sm-lbl">Saat<input type="time" data-f="time" data-i="${i}" value="${escapeHtml(l.time || "")}"></label>
+        </div>
+        <div class="sm-row">
+          <label class="sm-lbl">Tahmin<input type="text" data-f="prediction" data-i="${i}" value="${escapeHtml(l.prediction || "")}" placeholder="MS1, 2.5 Üst…"></label>
+          <label class="sm-lbl">Oran<input type="number" step="0.01" min="1" inputmode="decimal" data-f="odds" data-i="${i}" value="${l.odds != null ? escapeHtml(String(l.odds)) : ""}"></label>
+        </div>
+      </div>`;
+  };
+  const ov = sistemModalAc(`
+    <h3>${escapeHtml(baslik)}</h3>
+    <p class="sm-sub">Sistem kuponu · tutar girmene gerek yok, oynayan kişi belirleyecek.</p>
+    ${Array.from({ length: SISTEM_BACAK }, (_, i) => legBlok(i)).join("")}
+    <div id="sm-err" class="sm-warn" style="display:none"></div>
+    <div class="sm-actions">
+      <button class="btn-secondary" id="sm-iptal">Vazgeç</button>
+      <button class="btn-primary" id="sm-kaydet">Kaydet</button>
+    </div>
+  `);
+  ov.querySelector("#sm-iptal").addEventListener("click", sistemModalKapat);
+  ov.querySelector("#sm-kaydet").addEventListener("click", async () => {
+    const err = ov.querySelector("#sm-err");
+    const legs = [];
+    for (let i = 0; i < SISTEM_BACAK; i++) {
+      const g = (f) => ov.querySelector(`[data-f="${f}"][data-i="${i}"]`).value.trim();
+      const odds = parseFloat(g("odds").replace(",", "."));
+      const dayIso = g("dayIso");
+      const teams = g("teams"), time = g("time"), prediction = g("prediction");
+      if (!teams || !dayIso || !time || !prediction || !(odds > 1)) {
+        err.textContent = `${i + 1}. maçta eksik ya da hatalı alan var (oran 1'den büyük olmalı).`;
+        err.style.display = "block"; return;
+      }
+      const [y, mo, d] = dayIso.split("-");
+      legs.push({ teams, dayIso, day: `${d}.${mo}.${y}`, time, prediction, odds });
+    }
+    const ozet = {
+      legs,
+      teams: legs.map(l => l.teams).join(" | "),
+      prediction: legs.map(l => l.prediction).join(" | "),
+      odds: legs.reduce((p, l) => p * l.odds, 1),
+      amount: 0,
+      enteredAt: serverTimestamp()
+    };
+    ov.querySelector("#sm-kaydet").disabled = true;
+    try {
+      await updateDoc(doc(db, "coupons", couponId), { [`matches.${user}`]: ozet });
+      sistemModalKapat();
+      showToast("Maçlar kaydedildi ✔");
+    } catch (e) {
+      console.error(e);
+      err.textContent = "Kaydedilemedi: " + (e.code || e.message); err.style.display = "block";
+      ov.querySelector("#sm-kaydet").disabled = false;
+    }
+  });
+}
+
+/* ---------- alt bölüm: sistem seçimi / sonuçlar ---------- */
+function sistemOnizlemeHtml(c, harcanabilir) {
+  const n = sistemBacaklar(c).length;
+  const ks = [...sistemForm.ks].sort((a, b) => a - b);
+  const kolon = ks.reduce((t, k) => t + comb(n, k), 0);
+  const stake = parseFloat(String(sistemForm.stake).replace(",", ".")) || 0;
+  if (!ks.length) return `Önce en az bir sistem seç.`;
+  const unit = kolon ? stake / kolon : 0;
+  const eAll = elemSym(sistemBacaklar(c).map(l => l.odds));
+  const maxP = unit * ks.reduce((t, k) => t + (eAll[k] || 0), 0);
+  let html = `<strong>${ks.join("+")}'lı sistem</strong> · ${kolon} kolon`;
+  if (stake > 0) {
+    html += `<br>Toplam tutar: <strong>${trTL(stake)}₺</strong> · kolon başı ≈ ${trTL(unit)}₺`;
+    html += `<br>Hepsi tutarsa gelir: <strong>${trTL(maxP)}₺</strong>`;
+    if (stake > harcanabilir + 0.005) html += `<br><span class="sm-warn">⚠ Kasada yeterli para yok (kasa: ${trTL(harcanabilir)}₺). Kupon oynanamaz.</span>`;
+    else html += `<br>Kasada kalacak: ${trTL(harcanabilir - stake)}₺`;
+  } else html += `<br>Toplam tutarı yaz.`;
+  return html;
+}
+
+function sistemFormHtml(c, duzenle) {
+  const n = sistemBacaklar(c).length;
+  const kutular = [];
+  for (let k = 2; k <= n; k++) {
+    kutular.push(`<label class="sm-k ${sistemForm.ks.has(k) ? "on" : ""}"><input type="checkbox" data-k="${k}" ${sistemForm.ks.has(k) ? "checked" : ""}> ${k}'li <small style="opacity:.7">(${comb(n, k)} kolon)</small></label>`);
+  }
+  return `
+    <div id="sm-form" class="sm-form">
+      <p class="footer-note">${duzenle ? "Sistemi ya da toplam tutarı düzelt." : `Tüm maçlar girildi (${n} maç). Sistemi seç ve oynadığın toplam tutarı yaz. Para ortak kasadan çıkar.`}</p>
+      <div class="sm-ks">${kutular.join("")}</div>
+      <label class="sm-lbl">Toplam tutar (₺) — Nesine'de kuponun altında görünen toplam fiyat
+        <input id="sm-stake" type="number" inputmode="decimal" min="0" step="0.01" value="${escapeHtml(String(sistemForm.stake))}" placeholder="örn. 150">
+      </label>
+      <div id="sm-preview" class="sm-preview"></div>
+      <div class="sm-actions">
+        ${duzenle ? `<button class="btn-secondary" id="sm-vazgec">Vazgeç</button>` : ""}
+        <button class="btn-primary" id="sm-oyna">${duzenle ? "Kaydet" : "🏦 Kuponu Oynadım (kasadan düş)"}</button>
+      </div>
+    </div>`;
+}
+
+function renderSistemFooter(c, info) {
+  ensureSistemStyle();
+  const footer = document.getElementById("ticket-footer");
+  const duzenle = sistemForm.edit && sistemForm.couponId === c.id && !!c.playedBy;
+  const formModu = info.key === "ready" || duzenle;
+  const sig = c.id + "|" + info.key + "|" + (duzenle ? "e" : "");
+  // Kullanıcı formu doldururken kasa/kupon güncellemesi gelirse yazdığını bozma
+  if (formModu && footer.dataset.sig === sig && footer.querySelector("#sm-form") && footer.contains(document.activeElement)) {
+    const pv = footer.querySelector("#sm-preview");
+    if (pv) pv.innerHTML = sistemOnizlemeHtml(c, sistemHarcanabilir(c, duzenle));
+    return;
+  }
+  footer.dataset.sig = sig;
+  footer.innerHTML = "";
+
+  if (info.key === "open") {
+    footer.innerHTML = `<p class="footer-note">Herkes ${SISTEM_BACAK} maçını girdiğinde kupon hazır olacak. Sonra oynayan kişi sistemi ve tutarı seçecek.</p>`;
+    return;
+  }
+
+  if (formModu) {
+    if (sistemForm.couponId !== c.id || (!duzenle && info.key === "ready" && sistemForm.edit)) {
+      sistemForm.couponId = c.id; sistemForm.ks = new Set(); sistemForm.stake = ""; sistemForm.edit = false;
+    }
+    if (duzenle && sistemForm.ks.size === 0) {
+      sistemForm.ks = new Set(sistemHesap(c).ks);
+      sistemForm.stake = String((c.sistem && c.sistem.stake) || "");
+    }
+    footer.innerHTML = sistemFormHtml(c, duzenle);
+    const pv = footer.querySelector("#sm-preview");
+    const guncelle = () => { pv.innerHTML = sistemOnizlemeHtml(c, sistemHarcanabilir(c, duzenle)); };
+    guncelle();
+    footer.querySelectorAll("input[data-k]").forEach(cb => cb.addEventListener("change", () => {
+      const k = Number(cb.dataset.k);
+      if (cb.checked) sistemForm.ks.add(k); else sistemForm.ks.delete(k);
+      cb.closest(".sm-k").classList.toggle("on", cb.checked);
+      guncelle();
+    }));
+    footer.querySelector("#sm-stake").addEventListener("input", (e) => { sistemForm.stake = e.target.value; guncelle(); });
+    footer.querySelector("#sm-oyna").addEventListener("click", () => sistemOyna(c.id, duzenle));
+    const vz = footer.querySelector("#sm-vazgec");
+    if (vz) vz.addEventListener("click", () => { sistemForm.edit = false; sistemForm.ks = new Set(); renderSistemFooter(couponsCache.find(x => x.id === c.id) || c, info); });
+    return;
+  }
+
+  // oynandı / sonuçlandı
+  const h = sistemHesap(c);
+  const canEditResults = isAdmin() || (c.playedBy === currentUser && !h.tamam);
+  const final = info.key === "won" || info.key === "lost";
+  let html = "";
+  if (final) {
+    const b = sistemBorclar(c);
+    html += `<div class="final-banner ${info.key === "won" ? "won" : "lost"}">${info.key === "won" ? "🏆 Kupon Tuttu" : "Kupon Tutmadı"}</div>`;
+    html += `<div class="sm-box">
+      <div>Sistem: <strong>${h.ks.join("+")}</strong> · ${h.kolon} kolon · ${h.tutanKolon} kolon tuttu</div>
+      <div>Yatırılan: <strong>${trTL(h.stake)}₺</strong> · Gelen: <strong>${trTL(h.payout)}₺</strong>${h.manuel !== null ? " <small>(elle girildi)</small>" : ""}</div>
+      ${b.loss > 0.005 && b.totalFailed > 0 ? `<div class="sm-warn" style="margin-top:6px">Zarar: ${trTL(b.loss)}₺ — tutmayan maç sayısına göre paylaştırıldı:</div>` +
+        Object.keys(b.perUser).map(u => `<div>• ${escapeHtml(u)}: ${b.perUser[u].failedLegs.length}/${b.totalFailed} maç → <strong>${trTL(b.perUser[u].debt)}₺</strong> borç</div>`).join("") : ""}
+      ${h.payout - h.stake > 0.005 ? `<div style="margin-top:6px">Kâr: <strong>${trTL(h.payout - h.stake)}₺</strong></div>` : ""}
+    </div>`;
+  } else {
+    html += `<p class="footer-note">Kuponu <strong>${escapeHtml(c.playedBy)}</strong> oynattı: <strong>${h.ks.join("+")}</strong> sistem, ${h.kolon} kolon, ${trTL(h.stake)}₺ (kasadan). Hepsi tutarsa ${trTL(h.maxPayout)}₺. Maçlar bitince sonuçları işaretle:</p>`;
+  }
+  footer.innerHTML = html;
+
+  // kazanç aksiyonu
+  if (final && h.payout > 0.005 && !c.payoutAction) {
+    if (canEditResults || c.playedBy === currentUser) {
+      const row = document.createElement("div");
+      row.className = "fund-choice-row";
+      if (info.key === "won") {
+        footer.insertAdjacentHTML("beforeend", `<p class="footer-note">Gelen <strong>${trTL(h.payout)}₺</strong> ne oldu?</p>`);
+        row.innerHTML = `<button id="payout-distribute-btn" class="btn-primary">💸 Kişilere Dağıtıldı</button><button id="payout-pool-btn" class="btn-secondary">🏦 Havuza Aktar</button>`;
+      } else {
+        footer.insertAdjacentHTML("beforeend", `<p class="footer-note">Kupon zararda bitti ama <strong>${trTL(h.payout)}₺</strong> geri geldi. Kasaya eklensin:</p>`);
+        row.innerHTML = `<button id="payout-pool-btn" class="btn-primary">🏦 ${trTL(h.payout)}₺ Havuza Aktar</button>`;
+      }
+      footer.appendChild(row);
+      const d = row.querySelector("#payout-distribute-btn");
+      if (d) d.addEventListener("click", () => setPayoutAction(c, "distributed"));
+      row.querySelector("#payout-pool-btn").addEventListener("click", () => setPayoutAction(c, "pooled"));
+    }
+  } else if (final && c.payoutAction) {
+    const label = c.payoutAction === "pooled" ? "Havuza eklendi" : "Kişilere dağıtıldı";
+    footer.insertAdjacentHTML("beforeend", `<p class="footer-note payout-done">Gelen kazanç: <strong>${label}</strong></p>`);
+  }
+
+  // sonuç satırları
+  if (canEditResults) {
+    const wrap = document.createElement("div");
+    wrap.innerHTML = `<p class="footer-note">${final ? "Admin olarak sonuçları değiştirebilirsin:" : ""}</p>`;
+    h.legs.forEach(l => {
+      const row = document.createElement("div");
+      row.className = "result-row";
+      row.innerHTML = `
+        <span class="result-teams">${escapeHtml(l.user)}: ${escapeHtml(l.teams)} <small style="opacity:.7">(${escapeHtml(String(l.prediction))} · ${Number(l.odds).toFixed(2)})</small></span>
+        <span class="sm-res">
+          <button data-u="${escapeHtml(l.user)}" data-i="${l.i}" data-v="tuttu" class="${l.res === "tuttu" ? "on-w" : ""}">Tuttu</button>
+          <button data-u="${escapeHtml(l.user)}" data-i="${l.i}" data-v="tutmadi" class="${l.res === "tutmadi" ? "on-l" : ""}">Tutmadı</button>
+          <button data-u="${escapeHtml(l.user)}" data-i="${l.i}" data-v="iptal" class="${l.res === "iptal" ? "on-i" : ""}" title="Maç iptal / iade — oranı 1 sayılır">İptal</button>
+        </span>`;
+      wrap.appendChild(row);
+    });
+    footer.appendChild(wrap);
+    wrap.querySelectorAll(".sm-res button").forEach(btn => {
+      btn.addEventListener("click", () => sistemSonuc(c.id, btn.dataset.u, Number(btn.dataset.i), btn.dataset.v));
+    });
+  } else if (!final) {
+    footer.insertAdjacentHTML("beforeend", `<p class="footer-note">Sonuçları oynatan kişi (ya da admin) işaretleyecek.</p>`);
+  }
+
+  // admin araçları
+  if (isAdmin() || c.playedBy === currentUser) {
+    const tools = document.createElement("div");
+    tools.className = "fund-edit-row";
+    tools.innerHTML = `
+      ${isAdmin() && !c.payoutAction ? `<button class="fund-edit-btn" id="sm-duzelt">✎ Sistem / tutarı düzelt</button>` : ""}
+      ${h.tamam && !c.payoutAction ? `<button class="fund-edit-btn" id="sm-elle">💰 Gelen kazancı elle gir</button>` : ""}`;
+    if (tools.querySelector("button")) footer.appendChild(tools);
+    const dz = tools.querySelector("#sm-duzelt");
+    if (dz) dz.addEventListener("click", () => {
+      sistemForm.couponId = c.id; sistemForm.edit = true; sistemForm.ks = new Set(); sistemForm.stake = "";
+      renderSistemFooter(couponsCache.find(x => x.id === c.id) || c, couponStatusInfo(c));
+    });
+    const el = tools.querySelector("#sm-elle");
+    if (el) el.addEventListener("click", () => sistemKazancElle(c.id));
+  }
+}
+
+function sistemHarcanabilir(c, duzenle) {
+  return poolBalance + (duzenle ? Number(c.sistem && c.sistem.stake) || 0 : 0);
+}
+
+async function sistemOyna(couponId, duzenle) {
+  const c = couponsCache.find(x => x.id === couponId);
+  if (!c) return;
+  const n = sistemBacaklar(c).length;
+  const ks = [...sistemForm.ks].filter(k => k >= 2 && k <= n).sort((a, b) => a - b);
+  const stake = Math.round((parseFloat(String(sistemForm.stake).replace(",", ".")) || 0) * 100) / 100;
+  if (!ks.length) { showToast("En az bir sistem seç"); return; }
+  if (!(stake > 0)) { showToast("Toplam tutarı yaz"); return; }
+  const eski = duzenle ? Number(c.sistem && c.sistem.stake) || 0 : 0;
+  const fark = stake - eski;
+  if (fark > 0 && poolBalance + 0.005 < fark) {
+    showToast(`Kasada yeterli para yok (kasa: ${poolBalance.toFixed(0)}₺, gerekli: ${fark.toFixed(0)}₺). Kupon oynanamaz.`);
+    return;
+  }
+  const kolon = ks.reduce((t, k) => t + comb(n, k), 0);
+  let kasaDustu = false;
+  try {
+    if (Math.abs(fark) > 0.0001) { await updateDoc(poolRef, { balance: increment(-fark) }); kasaDustu = true; }
+    const upd = { "sistem.ks": ks, "sistem.stake": stake, "sistem.kolon": kolon };
+    if (!duzenle) { upd.playedBy = currentUser; upd.playedAt = serverTimestamp(); upd.fundingSource = "pool"; }
+    await updateDoc(doc(db, "coupons", couponId), upd);
+    sistemForm.edit = false; sistemForm.ks = new Set(); sistemForm.stake = "";
+    showToast(duzenle ? "Sistem güncellendi ✔" : `Kupon oynatıldı (kasadan -${stake.toFixed(0)}₺)`);
+  } catch (err) {
+    console.error(err);
+    if (kasaDustu) { try { await updateDoc(poolRef, { balance: increment(fark) }); } catch (e2) { console.error(e2); } }
+    showToast("Kaydedilemedi: " + (err.code || err.message));
+  }
+}
+
+async function sistemSonuc(couponId, user, i, val) {
+  const c = couponsCache.find(x => x.id === couponId);
+  if (!c || !c.matches || !c.matches[user]) return;
+  const m = c.matches[user];
+  const cur = (c.legRes && c.legRes[user]) ? c.legRes[user].slice() : [];
+  while (cur.length < m.legs.length) cur.push(null);
+  cur[i] = cur[i] === val ? null : val;
+  const kayip = cur.some(x => x === "tutmadi");
+  const hepsi = cur.every(x => x === "tuttu" || x === "iptal");
+  const r = kayip ? "tutmadi" : (hepsi ? "tuttu" : null);
+  try {
+    await updateDoc(doc(db, "coupons", couponId), { [`legRes.${user}`]: cur, [`results.${user}`]: r });
+  } catch (err) { console.error(err); showToast("Kaydedilemedi: " + (err.code || err.message)); }
+}
+
+async function sistemKazancElle(couponId) {
+  const c = couponsCache.find(x => x.id === couponId);
+  if (!c) return;
+  const h = sistemHesap(c);
+  const v = window.prompt(`Nesine'de görünen gerçek gelen tutarı yaz (₺).\nSitenin hesabı: ${trTL(h.hesap)}₺\nBoş bırakıp Tamam'a basarsan elle girilen tutar silinir.`, h.manuel !== null ? String(h.manuel) : "");
+  if (v === null) return;
+  const t = v.trim();
+  let val = null;
+  if (t !== "") {
+    val = parseFloat(t.replace(",", "."));
+    if (isNaN(val) || val < 0) { showToast("Geçersiz tutar"); return; }
+  }
+  try { await updateDoc(doc(db, "coupons", couponId), { "sistem.odenenKazanc": val }); showToast("Güncellendi ✔"); }
+  catch (err) { console.error(err); showToast("Kaydedilemedi: " + (err.code || err.message)); }
+}
+
+/* ---------- ana sayfada "Yeni Sistem Kuponu" düğmesi ---------- */
+(function sistemDugmesiEkle() {
+  const eski = document.getElementById("new-coupon-btn");
+  if (!eski || document.getElementById("new-sistem-btn")) return;
+  ensureSistemStyle();
+  const b = document.createElement("button");
+  b.id = "new-sistem-btn";
+  b.className = eski.className;
+  b.type = "button";
+  b.textContent = "+ Sistem Kuponu";
+  b.style.marginLeft = "8px";
+  b.addEventListener("click", yeniSistemModal);
+  eski.insertAdjacentElement("afterend", b);
+})();
 
 /* ============================================================
    BOOT
