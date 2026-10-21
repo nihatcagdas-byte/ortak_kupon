@@ -8,6 +8,7 @@
 
 const admin = require("firebase-admin");
 const M = require("./kupon-motoru.cjs");
+const K = require("./sonuc-kaynaklari.cjs");
 
 const API_KEY = process.env.API_FOOTBALL_KEY;
 const VAZGEC_GUN = 4;
@@ -84,10 +85,13 @@ async function main() {
     const gunler = {};
     snap.docs.forEach((d) => { const k = { id: d.id, ...d.data() }; if (k.dateKey <= bugun) (gunler[k.dateKey] = gunler[k.dateKey] || []).push(k); });
     let guncellenen = 0;
+    const kaynaklar = new Set();
     for (const gun of Object.keys(gunler).sort()) {
-      const fixtureler = await apiGet(`/fixtures?date=${gun}&timezone=Europe/Istanbul`);
-      console.log(gun, fixtureler.length, "maç alındı,", gunler[gun].length, "açık kupon");
-      if (fixtureler.length === 0) throw new Error(`${gun} için API-Football hiç maç döndürmedi (günlük limit/plan sorunu olabilir)`);
+      const { kaynak, liste: fixtureler, hatalar } = await K.gunMaclari(gun, (g) => apiGet(`/fixtures?date=${g}&timezone=Europe/Istanbul`));
+      hatalar.forEach((h) => console.log("  uyarı:", h));
+      console.log(gun, fixtureler.length, "maç alındı (kaynak:", kaynak || "yok", "),", gunler[gun].length, "açık kupon");
+      if (fixtureler.length === 0) throw new Error(`${gun} için hiçbir kaynaktan maç alınamadı: ${hatalar.join(" | ")}`.slice(0, 280));
+      kaynaklar.add(kaynak);
       for (const k of gunler[gun]) {
         const s = kuponuIsle(k, fixtureler, bugun);
         if (!s.degisti) continue;
@@ -101,7 +105,7 @@ async function main() {
     }
     const acikKalan = Object.keys(gunler).reduce((t, g) => t + gunler[g].length, 0) - guncellenen;
     console.log(`Bitti: ${guncellenen} kupon güncellendi, ${Math.max(0, acikKalan)} kupon hâlâ açık`);
-    await durumRef.set({ lastSettle: new Date().toISOString(), settleOk: true, settleMessage: `${guncellenen} kupon güncellendi` + (acikKalan > 0 ? `, ${acikKalan} kupon henüz sonuçlanmadı (maçlar bitmemiş ya da eşleşmedi)` : "") }, { merge: true });
+    await durumRef.set({ lastSettle: new Date().toISOString(), settleOk: true, settleMessage: `${guncellenen} kupon güncellendi` + (kaynaklar.size ? ` (kaynak: ${[...kaynaklar].join(", ")})` : "") + (acikKalan > 0 ? `, ${acikKalan} kupon henüz sonuçlanmadı (maçlar bitmemiş ya da eşleşmedi)` : "") }, { merge: true });
   } catch (e) {
     console.error("HATA:", e.message);
     await durumRef.set({ lastSettle: new Date().toISOString(), settleOk: false, settleMessage: String(e.message).slice(0, 300) }, { merge: true });
