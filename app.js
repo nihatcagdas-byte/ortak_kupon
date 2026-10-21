@@ -1463,6 +1463,17 @@ function renderDebtAndShare() {
       <p><strong>Formül:</strong> Pay = eşit pay − kendi borcu + (diğer kişilerin toplam borcu ÷ ${Math.max(N - 1, 1)}) − daha önce ödenen pay</p>
       <p><strong>Şu anki hesap (kasa ${poolBalance.toFixed(0)}₺${totalAppliedPay > 0 ? `, ödenen borç ${totalAppliedPay.toFixed(0)}₺ eşit paydan çıkarıldı` : ""}):</strong></p>
       <ul>${calcLines.join("")}</ul>
+      <p><strong>Sistem kuponunda her şey nasıl hesaplanır?</strong></p>
+      <ol>
+        <li><strong>Giriş:</strong> Her kişi 2 maç girer, tutar yazmaz. Oynayan kişi sistemleri (örn. 3+4+5+6) ve oynadığı <em>toplam tutarı</em> seçer. Para her zaman ortak kasadan çıkar; kasada yeterli para yoksa kupon oynanamaz.</li>
+        <li><strong>Kolon:</strong> n maç içinden k'lı sistem, n'in k'lı kombinasyonları kadar kolondur. 6 maçta 4'lü = 15, 5'li = 6, 3'lü = 20, 6'lı = 1 kolon. Birden fazla sistem seçilirse kolonlar toplanır. Kolon başı tutar = toplam tutar ÷ kolon sayısı.</li>
+        <li><strong>Gelen kazanç:</strong> Bir kolon, içindeki bütün maçlar tutarsa kazanır; getirisi o kolondaki oranların çarpımı × kolon başı tutardır. Gelen kazanç, kazanan kolonların getirisinin toplamıdır. İptal/iade olan maçın oranı 1 sayılır. Nesine'nin ödediği tutar farklıysa "Gelen kazancı elle gir" ile düzeltilir.</li>
+        <li><strong>Tuttu mu, tutmadı mı:</strong> Gelen kazanç yatırılan tutara eşit ya da fazlaysa kupon <em>Tuttu</em>, azsa <em>Tutmadı</em> sayılır. Tuttuysa kazanç, normal kuponlardaki gibi "kişilere dağıtıldı" ya da "havuza aktar" diye işlenir.</li>
+        <li><strong>Zarar:</strong> Zarar = yatırılan tutar − gelen kazanç. Zararlı bitse bile gelen para "Havuza Aktar" düğmesiyle kasaya geri eklenir; böylece kasadaki net kayıp tam olarak bu zarar kadar olur.</li>
+        <li><strong>Zararın bölüşümü:</strong> Zarar, kişilerin <em>tutmayan maç sayısına</em> göre paylaştırılır. Kişinin borcu = zarar × (onun tutmayan maçı ÷ kupondaki toplam tutmayan maç). Hiç maçı yatmayan kişiye borç yazılmaz. Maçı iptal olanlar tutmayan sayılmaz.</li>
+        <li><strong>Borcun işleyişi:</strong> Bu borç da normal borçla aynıdır: "Kasaya Borç" listesinde görünür, "Detaylar"da hangi maçlar yüzünden ne kadar olduğu yazar, parçalı ödenebilir. Borç oluştuğu anda borçlu dışındaki kişilerin payına da eşit bölünerek yazılır (yukarıdaki formül aynen geçerli).</li>
+      </ol>
+      <p><strong>Örnek:</strong> 6 maç, 4+5 sistem = 21 kolon, toplam 210₺ → kolon başı 10₺. Mahir'in ve Cenk'in birer maçı yattı, kalan 4 maç tuttu (oranlar çarpımı 7,56). Sadece 1 kolon kazandığı için gelen = 75,6₺, zarar = 134,4₺. Toplam 2 maç tutmadı: Mahir 1/2 → 67,2₺, Cenk 1/2 → 67,2₺ borç; Nihat'ın maçları tuttuğu için borcu yok.</p>
     </details>
   `;
   shareList.appendChild(note);
