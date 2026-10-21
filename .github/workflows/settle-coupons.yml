@@ -6,6 +6,10 @@ on:
     # (açık kupon yoksa saniyeler içinde biter, API-Football'a istek atmaz).
     - cron: "30 21,23,3,6,9,12 * * *"   # 00:30, 02:30, 06:30, 09:30, 12:30, 15:30 Türkiye saati
   workflow_dispatch:
+    inputs:
+      tekrar:
+        description: "Daha önce 'Sonuç bulunamadı' diye iptal edilen seçimleri yeniden dene (true/false)"
+        default: "false"
 
 permissions:
   contents: read
@@ -26,3 +30,4 @@ jobs:
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           API_FOOTBALL_KEY: ${{ secrets.API_FOOTBALL_KEY }}
+          TEKRAR: ${{ github.event.inputs.tekrar }}
