@@ -1453,6 +1453,16 @@ function renderDebtAndShare() {
   note.innerHTML = `
     <details>
       <summary><strong>Bu paylar nasıl hesaplanıyor?</strong></summary>
+      <p><strong>Önce kasa nasıl işler?</strong></p>
+      <ol>
+        <li><strong>Kasaya para girişi:</strong> Kasaya sadece şunlar para ekler: tutan bir kuponun kazancının "Havuza Aktar" ile kasaya alınması, zararlı sistem kuponunda geri gelen paranın "Havuza Aktar" ile alınması, kişilerin borç ödemesi ve adminin elle yaptığı düzeltme.</li>
+        <li><strong>Kasadan para çıkışı:</strong> Kupon "Havuzdan" oynatılınca kupon tutarı kasadan düşer. Ayrıca bir kişiye "Payı Öde" yapılınca ödenen tutar çıkar. Sistem kuponları her zaman havuzdan oynanır.</li>
+        <li><strong>Kaynak seçimi:</strong> Normal kuponda kuponu oynatan kişi parayı "Kullanıcılardan" ya da "Havuzdan" seçer. <em>Kullanıcılardan</em> seçilirse herkes kendi cebinden öder; kasaya, borca ve paya hiçbir etkisi olmaz. <em>Havuzdan</em> seçilirse tutar kasadan düşer ve aşağıdaki borç kuralı işler. Admin, oynatılmış bir kuponun kaynağını sonradan düzeltebilir; kasaya fark otomatik iade edilir ya da düşülür.</li>
+        <li><strong>Tutan kupon:</strong> Kazanç iki yoldan biriyle işlenir. "Havuza Aktar" derseniz kazanç kasaya eklenir ve herkesin payına eşit yansır. "Kişilere Dağıtıldı" derseniz para kasaya girmez, kişiler aralarında paylaşmış sayılır. Bir seçeneği seçmezseniz kasa kazanç kadar eksik görünür.</li>
+        <li><strong>Tutmayan kupon (havuzdan):</strong> Kupon tutarı zaten kasadan çıkmıştı. Tutmayan kişi kazananların yatırdığı tutarı öder. Tutmayan birden fazla kişi varsa bu tutar aralarında eşit bölünür. Bu borç kasaya otomatik girmez; kişi ödeyince "Borç Öde" ile kasaya girer. Borç kişinin ödemesine kadar payından düşer, kalan kişilerin payına eşit eklenir.</li>
+        <li><strong>Parçalı ödeme:</strong> Borcun tamamı ya da bir kısmı ödenebilir. Ödemeler en eski borçtan başlayarak kapatır; "Detaylar"da sadece ödenmemiş kuponlar (ve kısmen ödenenlerin kalanı) görünür. Borcu tamamen biten kişinin Detaylar paneli boş olur; yeni borç yapınca yalnızca yeni kuponlar listelenir.</li>
+      </ol>
+      <p><strong>Pay hesabı:</strong></p>
       <ol>
         <li><strong>Eşit pay:</strong> Kasadaki para herkese eşit bölünür. Daha önce kişilere ödenen paylar toplama geri eklenir, borç ödemeleri ise çıkarılır (nedeni 4. maddede).</li>
         <li><strong>Borç:</strong> Havuzdan oynanan bir kupon tutmayınca, tutmayan kişi kazananların yatırdığı tutarı öder. Bu borç, o kişinin payından düşer.</li>
