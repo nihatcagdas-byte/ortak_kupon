@@ -645,14 +645,68 @@ function couponStatusInfo(c) {
   return won ? { key: "won", label: "Tuttu" } : { key: "lost", label: "Tutmadı" };
 }
 
+// Kupon listesi filtresi: ilk açılışta hepsi görünür (seçim saklanmaz)
+let kuponFiltre = "hepsi";
+const KUPON_FILTRELERI = [
+  { key: "hepsi", label: "Hepsi", test: () => true },
+  { key: "tutan", label: "Tutanlar", test: (c) => couponStatusInfo(c).key === "won" },
+  { key: "tutmayan", label: "Tutmayanlar", test: (c) => couponStatusInfo(c).key === "lost" },
+  { key: "bekleyen", label: "Bekleyenler", test: (c) => !["won", "lost"].includes(couponStatusInfo(c).key) }
+];
+
+function ensureKuponFiltreBar() {
+  const list = document.getElementById("coupon-list");
+  if (!list) return null;
+  let bar = document.getElementById("kupon-filtre");
+  if (bar) return bar;
+  if (!document.getElementById("kupon-filtre-style")) {
+    const st = document.createElement("style");
+    st.id = "kupon-filtre-style";
+    st.textContent = `
+      .kupon-filtre{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 12px}
+      .kupon-filtre button{padding:7px 14px;border-radius:999px;border:1px solid rgba(128,128,128,.45);background:transparent;color:inherit;font:inherit;font-size:.85rem;font-weight:600;cursor:pointer}
+      .kupon-filtre button.on{background:#1f6fff;border-color:#1f6fff;color:#fff}
+      .kupon-filtre button.on-w{background:#2e9e5b;border-color:#2e9e5b;color:#fff}
+      .kupon-filtre button.on-l{background:#e5484d;border-color:#e5484d;color:#fff}
+      .kupon-filtre small{opacity:.8;margin-left:4px;font-weight:500}
+    `;
+    document.head.appendChild(st);
+  }
+  bar = document.createElement("div");
+  bar.id = "kupon-filtre";
+  bar.className = "kupon-filtre";
+  list.insertAdjacentElement("beforebegin", bar);
+  bar.addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-f]");
+    if (!b) return;
+    kuponFiltre = b.dataset.f;
+    renderCouponList();
+  });
+  return bar;
+}
+
 function renderCouponList() {
   const list = document.getElementById("coupon-list");
   list.innerHTML = "";
+  const bar = ensureKuponFiltreBar();
+  if (bar) {
+    bar.innerHTML = KUPON_FILTRELERI.map(f => {
+      const n = couponsCache.filter(f.test).length;
+      const cls = kuponFiltre === f.key ? (f.key === "tutan" ? "on-w" : f.key === "tutmayan" ? "on-l" : "on") : "";
+      return `<button type="button" data-f="${f.key}" class="${cls}">${f.label}<small>${n}</small></button>`;
+    }).join("");
+  }
   if (couponsCache.length === 0) {
     list.innerHTML = `<div class="empty-note">Henüz kupon yok. "+ Yeni Kupon" ile ilkini aç.</div>`;
     return;
   }
-  couponsCache.forEach(c => {
+  const aktifFiltre = KUPON_FILTRELERI.find(f => f.key === kuponFiltre) || KUPON_FILTRELERI[0];
+  const gosterilecek = couponsCache.filter(aktifFiltre.test);
+  if (gosterilecek.length === 0) {
+    list.innerHTML = `<div class="empty-note">Bu filtreye uyan kupon yok.</div>`;
+    return;
+  }
+  gosterilecek.forEach(c => {
     const info = couponStatusInfo(c);
     const filled = couponProgress(c);
     const totals = couponTotals(c);
@@ -1364,11 +1418,27 @@ async function recordPayment(type, user, defaultAmount) {
   }
 }
 
+// "Kasadaki Payınız" kartı, "Kasaya Borç" kartının üstünde görünsün
+function kartSirasiniDuzelt(debtList, shareList) {
+  if (kartSirasiniDuzelt.yapildi) return;
+  let ortak = debtList.parentElement;
+  while (ortak && !ortak.contains(shareList)) ortak = ortak.parentElement;
+  if (!ortak || ortak === debtList || ortak === shareList) return;
+  let kartB = debtList, kartP = shareList;
+  while (kartB.parentElement && kartB.parentElement !== ortak) kartB = kartB.parentElement;
+  while (kartP.parentElement && kartP.parentElement !== ortak) kartP = kartP.parentElement;
+  if (kartB === kartP || kartB.parentElement !== ortak || kartP.parentElement !== ortak) return;
+  // borç kartı önce geliyorsa payı onun önüne al
+  if (kartB.compareDocumentPosition(kartP) & 4 /* DOCUMENT_POSITION_FOLLOWING */) ortak.insertBefore(kartP, kartB);
+  kartSirasiniDuzelt.yapildi = true;
+}
+
 function renderDebtAndShare() {
   const debtList = document.getElementById("debt-list");
   const shareList = document.getElementById("share-list");
   const historyEl = document.getElementById("payment-history");
   if (!debtList || !shareList) return;
+  kartSirasiniDuzelt(debtList, shareList);
 
   const N = USERS.length;
   const rawDebts = computeRawDebts();      // kupon kayıplarından doğan toplam borç
