@@ -69,6 +69,11 @@ function showToast(msg) {
   clearTimeout(showToast._t);
   showToast._t = setTimeout(() => t.classList.add("hidden"), 2600);
 }
+// Kasa tutarı: tam sayıysa "300", kuruşlu ise "299,60" göster (yuvarlayıp yanıltmasın)
+function fmtKasa(x) {
+  const v = Math.round(Number(x) * 100) / 100;
+  return Number.isInteger(v) ? String(v) : v.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
 function switchView(name) {
   document.querySelectorAll(".app-shell .view").forEach(v => v.classList.remove("active"));
   document.getElementById(`view-${name}`).classList.add("active");
@@ -284,7 +289,7 @@ function subscribePool() {
       try { await setDoc(poolRef, { balance: 0 }); } catch (e) { console.error(e); }
       return;
     }
-    poolBalance = Number(snap.data().balance || 0);
+    poolBalance = Math.round(Number(snap.data().balance || 0) * 100) / 100;   // kuruş yuvarlama (kayan nokta hatasını önler)
     renderPoolCard();
     renderDebtAndShare();
     // Kupon detayındaysak, havuz bakiyesine bağlı butonları (etiketler vb.) tazele
@@ -302,7 +307,7 @@ function renderPoolCard() {
     <span class="pool-icon">🏦</span>
     <div>
       <div class="pool-label">Ortak Kasa</div>
-      <div class="pool-value">${poolBalance.toFixed(0)}₺</div>
+      <div class="pool-value">${fmtKasa(poolBalance)}₺</div>
     </div>
     ${isAdmin() ? `<button id="pool-edit-btn" class="pool-edit-btn" title="Manuel düzelt">✎</button>` : ""}
   `;
@@ -906,7 +911,7 @@ function renderTicketFooter(c, info) {
     row.className = "fund-choice-row";
     row.innerHTML = `
       <button id="fund-players-btn" class="btn-primary">👥 Kullanıcılardan</button>
-      <button id="fund-pool-btn" class="btn-secondary">🏦 Havuzdan <span class="fund-pool-balance">(${poolBalance.toFixed(0)}₺)</span></button>
+      <button id="fund-pool-btn" class="btn-secondary">🏦 Havuzdan <span class="fund-pool-balance">(${fmtKasa(poolBalance)}₺)</span></button>
     `;
     footer.appendChild(row);
     footer.insertAdjacentHTML("beforeend", `<p class="footer-note fund-note">Gerekli tutar: ${totals.totalStake}₺</p>`);
@@ -987,8 +992,8 @@ async function adminChangeFundingSource(c, newSource) {
       // Havuzdan düşülmüştü, geri iade et
       await updateDoc(poolRef, { balance: increment(totals.totalStake) });
     } else if (c.fundingSource === "players" && newSource === "pool") {
-      if (poolBalance < totals.totalStake) {
-        showToast(`Havuzda yeterli bakiye yok (Havuz: ${poolBalance.toFixed(0)}₺, Gerekli: ${totals.totalStake}₺)`);
+      if (poolBalance + 0.005 < totals.totalStake) {
+        showToast(`Havuzda yeterli bakiye yok (Havuz: ${fmtKasa(poolBalance)}₺, Gerekli: ${fmtKasa(totals.totalStake)}₺)`);
         return;
       }
       await updateDoc(poolRef, { balance: increment(-totals.totalStake) });
@@ -1043,8 +1048,8 @@ async function deleteCoupon(couponId) {
 async function markPlayed(c, source) {
   const totals = couponTotals(c);
   if (source === "pool") {
-    if (poolBalance < totals.totalStake) {
-      showToast(`Havuzda yeterli bakiye yok (Havuz: ${poolBalance.toFixed(0)}₺, Gerekli: ${totals.totalStake}₺)`);
+    if (poolBalance + 0.005 < totals.totalStake) {
+      showToast(`Havuzda yeterli bakiye yok (Havuz: ${fmtKasa(poolBalance)}₺, Gerekli: ${fmtKasa(totals.totalStake)}₺)`);
       return;
     }
     try {
@@ -1395,8 +1400,8 @@ async function recordPayment(type, user, defaultAmount) {
     showToast(`Tutar borçtan fazla olamaz (${Math.round(defaultAmount)}₺)`);
     return;
   }
-  if (!isDebt && amount > poolBalance) {
-    showToast(`Kasada yeterli bakiye yok (${poolBalance.toFixed(0)}₺)`);
+  if (!isDebt && amount > poolBalance + 0.005) {
+    showToast(`Kasada yeterli bakiye yok (${fmtKasa(poolBalance)}₺)`);
     return;
   }
   const kalan = Math.max(0, defaultAmount - amount);
@@ -1514,7 +1519,7 @@ function renderDebtAndShare() {
   totalRow.className = "simple-row simple-row-total";
   totalRow.innerHTML = `
     <span class="simple-row-name">Toplam Kasa</span>
-    <span class="simple-row-value is-share">${poolBalance.toFixed(0)}₺</span>
+    <span class="simple-row-value is-share">${fmtKasa(poolBalance)}₺</span>
   `;
   shareList.appendChild(totalRow);
 
@@ -2375,7 +2380,7 @@ async function sistemOyna(couponId, duzenle) {
   const eski = duzenle ? Number(c.sistem && c.sistem.stake) || 0 : 0;
   const fark = stake - eski;
   if (fark > 0 && poolBalance + 0.005 < fark) {
-    showToast(`Kasada yeterli para yok (kasa: ${poolBalance.toFixed(0)}₺, gerekli: ${fark.toFixed(0)}₺). Kupon oynanamaz.`);
+    showToast(`Kasada yeterli para yok (kasa: ${fmtKasa(poolBalance)}₺, gerekli: ${fmtKasa(fark)}₺). Kupon oynanamaz.`);
     return;
   }
   const kolon = ks.reduce((t, k) => t + comb(n, k), 0);
