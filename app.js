@@ -2,7 +2,7 @@ import { db, authReady, USERS } from "./firebase-config.js";
 import {
   doc, getDoc, setDoc, updateDoc, deleteDoc, increment,
   collection, query, where, orderBy, onSnapshot, getDocs,
-  serverTimestamp
+  serverTimestamp, runTransaction
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 /* ============================================================
@@ -985,7 +985,11 @@ function buildFundEditRow(c) {
 }
 
 async function adminChangeFundingSource(c, newSource) {
-  if (newSource === c.fundingSource) return;
+  if (newSource === c.fundingSource || adminChangeFundingSource.busy) return;
+  adminChangeFundingSource.busy = true;
+  try { await adminChangeFundingSourceIc(c, newSource); } finally { adminChangeFundingSource.busy = false; }
+}
+async function adminChangeFundingSourceIc(c, newSource) {
   const totals = couponTotals(c);
   try {
     if (c.fundingSource === "pool" && newSource === "players") {
@@ -1045,42 +1049,66 @@ async function deleteCoupon(couponId) {
   document.querySelector('.nav-btn[data-view="home"]').classList.add("active");
 }
 
+// Çift tıklama / iki cihazdan aynı anda basma korumalı: kontrol + kasa düşüşü + kupon güncellemesi
+// tek bir Firestore işleminde (transaction) yapılır, bu yüzden kasa iki kez düşemez.
 async function markPlayed(c, source) {
-  const totals = couponTotals(c);
-  if (source === "pool") {
-    if (poolBalance + 0.005 < totals.totalStake) {
-      showToast(`Havuzda yeterli bakiye yok (Havuz: ${fmtKasa(poolBalance)}₺, Gerekli: ${fmtKasa(totals.totalStake)}₺)`);
-      return;
-    }
-    try {
-      await updateDoc(poolRef, { balance: increment(-totals.totalStake) });
-    } catch (err) {
-      console.error(err);
-      showToast("Havuz güncellenemedi: " + (err.code || err.message));
-      return;
-    }
+  if (markPlayed.busy) return;
+  markPlayed.busy = true;
+  document.querySelectorAll("#fund-players-btn, #fund-pool-btn").forEach(b => { b.disabled = true; });
+  try {
+    const cref = doc(db, "coupons", c.id);
+    const sonuc = await runTransaction(db, async (tx) => {
+      const cs = await tx.get(cref);
+      if (!cs.exists()) throw new Error("KUPON_YOK");
+      const taze = { id: cs.id, ...cs.data() };
+      if (taze.playedBy) return { zatenOynandi: true };
+      const totals = couponTotals(taze);
+      if (source === "pool") {
+        const ps = await tx.get(poolRef);
+        const bal = ps.exists() ? Number(ps.data().balance || 0) : 0;
+        if (bal + 0.005 < totals.totalStake) return { yetersiz: bal, gerekli: totals.totalStake };
+        tx.update(poolRef, { balance: increment(-totals.totalStake) });
+      }
+      tx.update(cref, { playedBy: currentUser, playedAt: serverTimestamp(), fundingSource: source });
+      return { ok: true, tutar: totals.totalStake };
+    });
+    if (sonuc.zatenOynandi) showToast("Bu kupon zaten oynatılmış, ikinci kez işlem yapılmadı");
+    else if (sonuc.yetersiz !== undefined) showToast(`Havuzda yeterli bakiye yok (Havuz: ${fmtKasa(sonuc.yetersiz)}₺, Gerekli: ${fmtKasa(sonuc.gerekli)}₺)`);
+    else showToast(source === "pool" ? `Kupon havuzdan oynatıldı (-${fmtKasa(sonuc.tutar)}₺)` : "Kupon onaylandı, iyi şanslar!");
+  } catch (err) {
+    console.error(err);
+    showToast("Kaydedilemedi: " + (err.code || err.message));
+  } finally {
+    markPlayed.busy = false;
+    document.querySelectorAll("#fund-players-btn, #fund-pool-btn").forEach(b => { b.disabled = false; });
   }
-  await updateDoc(doc(db, "coupons", c.id), {
-    playedBy: currentUser,
-    playedAt: serverTimestamp(),
-    fundingSource: source
-  });
-  showToast(source === "pool" ? `Kupon havuzdan oynatıldı (-${totals.totalStake}₺)` : "Kupon onaylandı, iyi şanslar!");
 }
 
 async function setPayoutAction(c, action) {
-  const totals = couponTotals(c);
-  if (action === "pooled") {
-    try {
-      await updateDoc(poolRef, { balance: increment(totals.payout) });
-    } catch (err) {
-      console.error(err);
-      showToast("Havuz güncellenemedi: " + (err.code || err.message));
-      return;
-    }
+  if (setPayoutAction.busy) return;
+  setPayoutAction.busy = true;
+  document.querySelectorAll("#payout-distribute-btn, #payout-pool-btn").forEach(b => { b.disabled = true; });
+  try {
+    const cref = doc(db, "coupons", c.id);
+    const sonuc = await runTransaction(db, async (tx) => {
+      const cs = await tx.get(cref);
+      if (!cs.exists()) throw new Error("KUPON_YOK");
+      const taze = { id: cs.id, ...cs.data() };
+      if (taze.payoutAction) return { zaten: true };
+      const totals = couponTotals(taze);
+      if (action === "pooled") tx.update(poolRef, { balance: increment(totals.payout) });
+      tx.update(cref, { payoutAction: action });
+      return { ok: true, tutar: totals.payout };
+    });
+    if (sonuc.zaten) showToast("Bu kazanç zaten işlenmiş, ikinci kez eklenmedi");
+    else showToast(action === "pooled" ? `+${fmtKasa(sonuc.tutar)}₺ havuza eklendi` : "Kazanç dağıtıldı olarak işaretlendi");
+  } catch (err) {
+    console.error(err);
+    showToast("Kaydedilemedi: " + (err.code || err.message));
+  } finally {
+    setPayoutAction.busy = false;
+    document.querySelectorAll("#payout-distribute-btn, #payout-pool-btn").forEach(b => { b.disabled = false; });
   }
-  await updateDoc(doc(db, "coupons", c.id), { payoutAction: action });
-  showToast(action === "pooled" ? `+${totals.payout.toFixed(0)}₺ havuza eklendi` : "Kazanç dağıtıldı olarak işaretlendi");
 }
 
 async function setResult(couponId, user, val) {
@@ -2370,6 +2398,7 @@ function sistemHarcanabilir(c, duzenle) {
 }
 
 async function sistemOyna(couponId, duzenle) {
+  if (sistemOyna.busy) return;
   const c = couponsCache.find(x => x.id === couponId);
   if (!c) return;
   const n = sistemBacaklar(c).length;
@@ -2377,25 +2406,43 @@ async function sistemOyna(couponId, duzenle) {
   const stake = Math.round((parseFloat(String(sistemForm.stake).replace(",", ".")) || 0) * 100) / 100;
   if (!ks.length) { showToast("En az bir sistem seç"); return; }
   if (!(stake > 0)) { showToast("Toplam tutarı yaz"); return; }
-  const eski = duzenle ? Number(c.sistem && c.sistem.stake) || 0 : 0;
-  const fark = stake - eski;
-  if (fark > 0 && poolBalance + 0.005 < fark) {
-    showToast(`Kasada yeterli para yok (kasa: ${fmtKasa(poolBalance)}₺, gerekli: ${fmtKasa(fark)}₺). Kupon oynanamaz.`);
-    return;
-  }
   const kolon = ks.reduce((t, k) => t + comb(n, k), 0);
-  let kasaDustu = false;
+  sistemOyna.busy = true;
+  const btn = document.getElementById("sm-oyna");
+  if (btn) btn.disabled = true;
   try {
-    if (Math.abs(fark) > 0.0001) { await updateDoc(poolRef, { balance: increment(-fark) }); kasaDustu = true; }
-    const upd = { "sistem.ks": ks, "sistem.stake": stake, "sistem.kolon": kolon };
-    if (!duzenle) { upd.playedBy = currentUser; upd.playedAt = serverTimestamp(); upd.fundingSource = "pool"; }
-    await updateDoc(doc(db, "coupons", couponId), upd);
-    sistemForm.edit = false; sistemForm.ks = new Set(); sistemForm.stake = "";
-    showToast(duzenle ? "Sistem güncellendi ✔" : `Kupon oynatıldı (kasadan -${stake.toFixed(0)}₺)`);
+    const cref = doc(db, "coupons", couponId);
+    const sonuc = await runTransaction(db, async (tx) => {
+      const cs = await tx.get(cref);
+      if (!cs.exists()) throw new Error("KUPON_YOK");
+      const taze = cs.data();
+      if (!duzenle && taze.playedBy) return { zaten: true };
+      const eski = duzenle ? Number(taze.sistem && taze.sistem.stake) || 0 : 0;
+      const fark = stake - eski;
+      if (Math.abs(fark) > 0.0001) {
+        const ps = await tx.get(poolRef);
+        const bal = ps.exists() ? Number(ps.data().balance || 0) : 0;
+        if (fark > 0 && bal + 0.005 < fark) return { yetersiz: bal, gerekli: fark };
+        tx.update(poolRef, { balance: increment(-fark) });
+      }
+      const upd = { "sistem.ks": ks, "sistem.stake": stake, "sistem.kolon": kolon };
+      if (!duzenle) { upd.playedBy = currentUser; upd.playedAt = serverTimestamp(); upd.fundingSource = "pool"; }
+      tx.update(cref, upd);
+      return { ok: true };
+    });
+    if (sonuc.zaten) showToast("Bu kupon zaten oynatılmış, ikinci kez işlem yapılmadı");
+    else if (sonuc.yetersiz !== undefined) showToast(`Kasada yeterli para yok (kasa: ${fmtKasa(sonuc.yetersiz)}₺, gerekli: ${fmtKasa(sonuc.gerekli)}₺). Kupon oynanamaz.`);
+    else {
+      sistemForm.edit = false; sistemForm.ks = new Set(); sistemForm.stake = "";
+      showToast(duzenle ? "Sistem güncellendi ✔" : `Kupon oynatıldı (kasadan -${fmtKasa(stake)}₺)`);
+    }
   } catch (err) {
     console.error(err);
-    if (kasaDustu) { try { await updateDoc(poolRef, { balance: increment(fark) }); } catch (e2) { console.error(e2); } }
     showToast("Kaydedilemedi: " + (err.code || err.message));
+  } finally {
+    sistemOyna.busy = false;
+    const b2 = document.getElementById("sm-oyna");
+    if (b2) b2.disabled = false;
   }
 }
 
