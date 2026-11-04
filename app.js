@@ -1466,6 +1466,24 @@ function kartSirasiniDuzelt(debtList, shareList) {
   kartSirasiniDuzelt.yapildi = true;
 }
 
+// Kontrol tablosu: her kişinin borç/ödeme/pay dökümü + "paylar toplamı = kasa" denetimi
+function dokumTablosu(rows, kasa, baseShare) {
+  const f = (x) => fmtKasa(x);
+  const toplamPay = rows.reduce((t, r) => t + r.share, 0);
+  const fark = Math.round((toplamPay - kasa) * 100) / 100;
+  const hucre = "padding:4px 6px;text-align:right;border-top:1px solid rgba(128,128,128,.25);white-space:nowrap";
+  const baslik = "padding:4px 6px;text-align:right;font-weight:600;font-size:.74rem;opacity:.8";
+  return `
+    <p><strong>Kontrol tablosu</strong> <small style="opacity:.75">(rakamlar ₺)</small></p>
+    <div style="overflow-x:auto"><table style="border-collapse:collapse;font-size:.82rem;width:100%">
+      <tr><th style="${baslik};text-align:left">Kişi</th><th style="${baslik}">Toplam borç</th><th style="${baslik}">Ödediği</th><th style="${baslik}">Kalan borç</th><th style="${baslik}">Başkalarından</th><th style="${baslik}">Ödenen pay</th><th style="${baslik}">Payı</th></tr>
+      ${rows.map(r => `<tr><td style="${hucre};text-align:left">${escapeHtml(r.u)}</td><td style="${hucre}">${f(r.raw)}</td><td style="${hucre}">${f(r.odenen)}</td><td style="${hucre}">${f(r.debt)}</td><td style="${hucre}">${f(r.credit)}</td><td style="${hucre}">${f(r.paidOut)}</td><td style="${hucre};font-weight:700">${f(r.share)}</td></tr>`).join("")}
+      <tr><td style="${hucre};text-align:left;font-weight:700">Toplam</td><td style="${hucre}">${f(rows.reduce((t, r) => t + r.raw, 0))}</td><td style="${hucre}">${f(rows.reduce((t, r) => t + r.odenen, 0))}</td><td style="${hucre}">${f(rows.reduce((t, r) => t + r.debt, 0))}</td><td style="${hucre}">${f(rows.reduce((t, r) => t + r.credit, 0))}</td><td style="${hucre}">${f(rows.reduce((t, r) => t + r.paidOut, 0))}</td><td style="${hucre};font-weight:700">${f(toplamPay)}</td></tr>
+    </table></div>
+    <p style="margin:6px 0">Eşit pay (kasa − ödenen borçlar) ÷ kişi: <strong>${f(baseShare)}₺</strong> · Kasa: <strong>${f(kasa)}₺</strong> · Paylar toplamı: <strong>${f(toplamPay)}₺</strong> ${Math.abs(fark) < 0.05 ? "✔ kasa ile eşit" : `<span style="color:#e5484d;font-weight:700">⚠ ${f(fark)}₺ fark var</span>`}</p>
+    <p style="margin:0;opacity:.8;font-size:.8rem">Not: "Ödediği" yanlış kişide görünüyorsa ödeme yanlış satırdan kaydedilmiştir. Aşağıdaki ödeme geçmişinden kontrol edin.</p>`;
+}
+
 function renderDebtAndShare() {
   const debtList = document.getElementById("debt-list");
   const shareList = document.getElementById("share-list");
@@ -1522,11 +1540,13 @@ function renderDebtAndShare() {
 
   shareList.innerHTML = "";
   const calcLines = [];
+  const dokum = [];
   USERS.forEach(u => {
     const debt = debtByUser[u] || 0;                                   // kendi kalan borcu
     const credit = N > 1 ? (totalRaw - (rawDebts[u] || 0)) / (N - 1) : 0; // diğerlerinin borcundan gelen
     const fair = baseShare - debt + credit;
     const share = fair - paidOut[u];
+    dokum.push({ u, raw: rawDebts[u] || 0, odenen: paymentsSum("debt_payment", u), debt, credit, paidOut: paidOut[u], share });
     calcLines.push(
       `<li><strong>${u}:</strong> ${baseShare.toFixed(0)} (eşit pay) − ${debt.toFixed(0)} (kendi borcu) + ${credit.toFixed(0)} (diğerlerinin borcundan)` +
       `${paidOut[u] > 0 ? ` − ${paidOut[u].toFixed(0)} (daha önce ödenen pay)` : ""} = <strong>${share.toFixed(0)}₺</strong></li>`
@@ -1576,6 +1596,7 @@ function renderDebtAndShare() {
       <p><strong>Formül:</strong> Pay = eşit pay − kendi borcu + (diğer kişilerin toplam borcu ÷ ${Math.max(N - 1, 1)}) − daha önce ödenen pay</p>
       <p><strong>Şu anki hesap (kasa ${poolBalance.toFixed(0)}₺${totalAppliedPay > 0 ? `, ödenen borç ${totalAppliedPay.toFixed(0)}₺ eşit paydan çıkarıldı` : ""}):</strong></p>
       <ul>${calcLines.join("")}</ul>
+      ${dokumTablosu(dokum, poolBalance, baseShare)}
       <p><strong>Sistem kuponunda her şey nasıl hesaplanır?</strong></p>
       <ol>
         <li><strong>Giriş:</strong> Her kişi 2 maç girer, tutar yazmaz. Oynayan kişi sistemleri (örn. 3+4+5+6) ve oynadığı <em>toplam tutarı</em> seçer. Para her zaman ortak kasadan çıkar; kasada yeterli para yoksa kupon oynanamaz.</li>
