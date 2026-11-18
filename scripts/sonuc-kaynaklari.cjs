@@ -35,7 +35,8 @@ function fix(dateIso, home, away, durum, h, a) {
 const ESPN_LIGLER = [
   "tur.1", "tur.2", "eng.1", "eng.2", "eng.3", "esp.1", "esp.2", "ger.1", "ger.2", "ita.1", "ita.2", "fra.1", "fra.2",
   "ned.1", "por.1", "bel.1", "sco.1", "aut.1", "sui.1", "gre.1", "rus.1", "den.1", "swe.1", "nor.1",
-  "uefa.champions", "uefa.europa", "uefa.europa.conf", "usa.1", "bra.1", "arg.1", "mex.1", "jpn.1"
+  "uefa.champions", "uefa.europa", "uefa.europa.conf", "usa.1", "bra.1", "arg.1", "mex.1", "jpn.1",
+  "fifa.friendly", "uefa.nations", "uefa.euroq", "fifa.worldq.uefa", "fifa.worldq.conmebol", "fifa.worldq.concacaf", "fifa.worldq.afc", "fifa.worldq.caf", "uefa.europa.conf_qual", "club.friendly", "tur.cup", "eng.fa", "eng.league_cup", "esp.copa_del_rey"
 ];
 function espnDurum(t) {
   const ad = String((t && t.name) || "");
