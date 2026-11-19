@@ -10,12 +10,14 @@ const yuvarla = (x, n = 3) => Math.round(x * 10 ** n) / 10 ** n;
 
 /* ---------------- Takım adı eşleştirme (site ile aynı mantık) ---------------- */
 const STOP = new Set(["fc", "sk", "fk", "cf", "afc", "bk", "if", "sc", "ac", "as", "us", "cd", "ud", "club", "de", "the", "ssc", "sv", "vfb", "vfl", "tsv", "kf", "nk", "hnk", "cfr"]);
+const TR_ULKE = {"kuzey irlanda": "northern ireland", "guney kore": "south korea", "kuzey kore": "north korea", "guney afrika": "south africa", "fildisi sahili": "ivory coast", "yesil burun": "cape verde", "yeni zelanda": "new zealand", "saudi arabistan": "saudi arabia", "birlesik arap emirlikleri": "united arab emirates", "bosna hersek": "bosnia herzegovina", "kuzey makedonya": "north macedonia", "cek cumhuriyeti": "czech republic", "dominik cumhuriyeti": "dominican republic", "kosta rika": "costa rica", "abd": "usa", "amerika birlesik devletleri": "usa", "kongo dc": "dr congo", "ekvator ginesi": "equatorial guinea", "irlanda": "republic of ireland", "kosova": "kosovo", "danimarka": "denmark", "norvec": "norway", "isvec": "sweden", "finlandiya": "finland", "izlanda": "iceland", "almanya": "germany", "hollanda": "netherlands", "fransa": "france", "ispanya": "spain", "italya": "italy", "portekiz": "portugal", "belcika": "belgium", "isvicre": "switzerland", "avusturya": "austria", "polonya": "poland", "macaristan": "hungary", "romanya": "romania", "bulgaristan": "bulgaria", "sirbistan": "serbia", "hirvatistan": "croatia", "slovenya": "slovenia", "slovakya": "slovakia", "yunanistan": "greece", "turkiye": "turkey", "ukrayna": "ukraine", "rusya": "russia", "gurcistan": "georgia", "ermenistan": "armenia", "azerbaycan": "azerbaijan", "kazakistan": "kazakhstan", "beyaz rusya": "belarus", "litvanya": "lithuania", "letonya": "latvia", "estonya": "estonia", "karadag": "montenegro", "arnavutluk": "albania", "luksemburg": "luxembourg", "iskocya": "scotland", "galler": "wales", "ingiltere": "england", "malta": "malta", "kibris": "cyprus", "israil": "israel", "misir": "egypt", "fas": "morocco", "cezayir": "algeria", "tunus": "tunisia", "nijerya": "nigeria", "gana": "ghana", "senegal": "senegal", "kamerun": "cameroon", "japonya": "japan", "cin": "china", "hindistan": "india", "avustralya": "australia", "iran": "iran", "irak": "iraq", "urdun": "jordan", "katar": "qatar", "umman": "oman", "ozbekistan": "uzbekistan", "tayland": "thailand", "vietnam": "vietnam", "endonezya": "indonesia", "brezilya": "brazil", "arjantin": "argentina", "sili": "chile", "kolombiya": "colombia", "uruguay": "uruguay", "paraguay": "paraguay", "peru": "peru", "ekvador": "ecuador", "venezuela": "venezuela", "bolivya": "bolivia", "meksika": "mexico", "kanada": "canada", "panama": "panama", "jamaika": "jamaica", "kuba": "cuba", "haiti": "haiti", "honduras": "honduras"};
+const TR_ULKE_RE = new RegExp("\\b(" + Object.keys(TR_ULKE).sort((a, b) => b.length - a.length).join("|") + ")\\b", "g");
 const ESLE = { utd: "united", intl: "international", psg: "paris saint germain", man: "manchester", atl: "atletico" };
 
 function normalize(s) {
   return String(s == null ? "" : s).toLocaleLowerCase("en").replace(/ı/g, "i")
     .normalize("NFD").replace(/\p{M}/gu, "")
-    .replace(/[^a-z0-9 ]/g, " ").split(/\s+/)
+    .replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim().replace(TR_ULKE_RE, (m) => TR_ULKE[m]).split(/\s+/)
     .map((t) => ESLE[t] || t).filter((t) => t && !STOP.has(t)).join(" ");
 }
 function bigram(s) {
@@ -43,7 +45,10 @@ function esle(nesine, api, toleransDk = 25) {
     if (isNaN(d)) return;
     if (Math.abs(dk(trHM(d)) - dk(n.t)) > toleransDk) return;
     const h = benzerlik(n.h, a.home), v = benzerlik(n.a, a.away);
-    if (Math.min(h, v) < 0.4 || (h + v) / 2 < 0.55) return;
+    const iyi = Math.min(h, v) >= 0.4 && (h + v) / 2 >= 0.55;
+    // saat aynı + bir takım neredeyse birebir, diğeri kısmen benziyorsa (örn. "Celta Vigo B" - "RC Celta Fortuna") kabul et
+    const yarim = Math.max(h, v) >= 0.95 && Math.min(h, v) >= 0.3;
+    if (!iyi && !yarim) return;
     adaylar.push({ i, j, skor: (h + v) / 2 });
   }));
   adaylar.sort((x, y) => y.skor - x.skor);
